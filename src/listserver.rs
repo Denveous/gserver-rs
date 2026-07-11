@@ -312,14 +312,16 @@ impl ServerListConnection {
         
         let versions = {
             let srv = self.server.read().await;
-            srv.settings.get("allowedclientversions").unwrap_or_else(|| "V3,V4,V5,V6,V7,V8".to_string())
+            srv.allowed_versions_listserver_text()
         };
         
-        let text = format!("Listserver,settings,allowedversions,{}", versions);
-        let mut buf = Buffer::new();
-        buf.write_gchar(SVO_SENDTEXT);
-        buf.write_bytes(text.as_bytes());
-        self.send_packet(&mut stream, buf.bytes().to_vec()).await;
+        if !versions.is_empty() {
+            let text = format!("Listserver,settings,allowedversions,{}", versions);
+            let mut buf = Buffer::new();
+            buf.write_gchar(SVO_SENDTEXT);
+            buf.write_bytes(text.as_bytes());
+            self.send_packet(&mut stream, buf.bytes().to_vec()).await;
+        }
         
         let mut read_buffer = Vec::new();
         let mut read_buf = vec![0; 4096];

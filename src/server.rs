@@ -21,6 +21,7 @@ pub struct Server {
     pub classes: HashMap<String, ScriptClass>,
     pub flags: HashMap<String, String>,
     pub levels: HashMap<String, Arc<RwLock<crate::level::Level>>>,
+    pub allowed_versions: Vec<String>,
     pub restart_requested: bool,
 }
 
@@ -38,6 +39,7 @@ impl Server {
             classes: HashMap::new(),
             flags: HashMap::new(),
             levels: HashMap::new(),
+            allowed_versions: Vec::new(),
             restart_requested: false,
         }
     }
@@ -51,6 +53,7 @@ impl Server {
         }
         
         self.load_flags();
+        self.load_allowed_versions();
 
         self.listserver_manager.enabled = self.settings.get_bool("listserver", true);
         let listip = self.settings.get_or("listip", "listserver.graal.in");
@@ -71,6 +74,27 @@ impl Server {
                     }
                 }
             }
+        }
+    }
+
+    pub fn load_allowed_versions(&mut self) {
+        self.allowed_versions.clear();
+        let path = format!("{}config/allowedversions.txt", self.config_base_path);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            for line in content.lines() {
+                let mut clean_line = line.to_string();
+                if let Some(idx) = clean_line.find("//") {
+                    clean_line = clean_line[..idx].to_string();
+                }
+                clean_line = clean_line.replace('\r', "").replace('\t', "").replace(' ', "");
+                let clean_line = clean_line.trim();
+                if clean_line.is_empty() {
+                    continue;
+                }
+                self.allowed_versions.push(clean_line.to_string());
+            }
+        } else {
+            crate::log_error!("Could not open config/allowedversions.txt. No client version list will be sent to the listserver.");
         }
     }
 
