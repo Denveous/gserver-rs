@@ -21,10 +21,10 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: gserver-rs-linux
-            asset_name: gserver-rs-linux
+            binary_name: gserver-rs
           - os: windows-latest
-            artifact_name: gserver-rs-windows.exe
-            asset_name: gserver-rs-windows.exe
+            artifact_name: gserver-rs-windows
+            binary_name: gserver-rs.exe
 
     steps:
     - uses: actions/checkout@v4
@@ -37,11 +37,20 @@ jobs:
     - name: Build Release
       run: cargo build --release
 
+    - name: Package Release
+      shell: bash
+      run: |
+        mkdir package
+        cp target/release/${{ matrix.binary_name }} package/
+        cp -r servers package/
+        cd package
+        zip -r ../${{ matrix.artifact_name }}.zip ./*
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
-        path: target/release/gserver-rs${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+        path: ${{ matrix.artifact_name }}.zip
         
   release:
     name: Create Release
@@ -65,7 +74,7 @@ jobs:
       - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
-          name: gserver-rs-windows.exe
+          name: gserver-rs-windows
           path: ./artifacts/windows
           
       - name: Create GitHub Release
@@ -76,7 +85,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ./artifacts/linux/gserver-rs
-            ./artifacts/windows/gserver-rs.exe
+            ./artifacts/linux/gserver-rs-linux.zip
+            ./artifacts/windows/gserver-rs-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
