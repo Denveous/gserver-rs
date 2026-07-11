@@ -98,6 +98,10 @@ impl Server {
         }
     }
 
+    pub fn allowed_versions_listserver_text(&self) -> String {
+        self.allowed_versions.join(",")
+    }
+
     pub fn load_settings(&mut self) {
         if let Some(name) = self.settings.get("name") {
             if !name.is_empty() {
