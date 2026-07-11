@@ -37,7 +37,8 @@ jobs:
     - name: Build Release
       run: cargo build --release
 
-    - name: Package Release
+    - name: Package Release (Linux)
+      if: matrix.os == 'ubuntu-latest'
       shell: bash
       run: |
         mkdir package
@@ -45,6 +46,15 @@ jobs:
         cp -r servers package/
         cd package
         zip -r ../${{ matrix.artifact_name }}.zip ./*
+
+    - name: Package Release (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path package
+        Copy-Item -Path target\release\${{ matrix.binary_name }} -Destination package\
+        Copy-Item -Path servers -Destination package\servers -Recurse
+        Compress-Archive -Path package\* -DestinationPath ${{ matrix.artifact_name }}.zip
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
