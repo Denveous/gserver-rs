@@ -22,6 +22,7 @@ pub struct Server {
     pub flags: HashMap<String, String>,
     pub levels: HashMap<String, Arc<RwLock<crate::level::Level>>>,
     pub allowed_versions: Vec<String>,
+    pub bind_addr: String,
     pub restart_requested: bool,
 }
 
@@ -40,6 +41,7 @@ impl Server {
             flags: HashMap::new(),
             levels: HashMap::new(),
             allowed_versions: Vec::new(),
+            bind_addr: String::new(),
             restart_requested: false,
         }
     }
@@ -60,7 +62,10 @@ impl Server {
         let listport = self.settings.get_or("listport", "14900");
         self.listserver_manager.configure_endpoints(&listip, &listport);
 
-        // TODO: Socket bindings and managers
+        let bind_ip = if !_server_ip.is_empty() { _server_ip.to_string() } else { self.settings.get_or("serverip", "0.0.0.0") };
+        let bind_port = if !_port.is_empty() { _port.to_string() } else { self.settings.get_or("serverport", "14802") };
+        self.bind_addr = format!("{}:{}", if bind_ip == "AUTO" { "0.0.0.0" } else { &bind_ip }, bind_port);
+
         Ok(())
     }
 
@@ -120,6 +125,11 @@ impl Server {
                         conn.run().await;
                     });
                 }
+            }
+            
+            if !srv_read.bind_addr.is_empty() {
+                let bind_addr = srv_read.bind_addr.clone();
+                tokio::spawn(crate::network::start_socket_server(srv.clone(), bind_addr));
             }
         }
         

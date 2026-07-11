@@ -41,8 +41,8 @@ impl SocketSession {
     }
 }
 
-pub async fn start_socket_server(server: Arc<RwLock<Server>>, bind_addr: &str) {
-    let listener = match tokio::net::TcpListener::bind(bind_addr).await {
+pub async fn start_socket_server(server: Arc<RwLock<Server>>, bind_addr: String) {
+    let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
         Ok(l) => l,
         Err(e) => {
             crate::log_error!("Failed to bind TCP listener on {}: {}", bind_addr, e);
