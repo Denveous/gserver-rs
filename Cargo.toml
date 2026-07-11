@@ -1,0 +1,17 @@
+[package]
+name = "gserver-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+base64 = "0.22.1"
+bytes = "1.12.1"
+bzip2 = "0.6.1"
+chrono = "0.4.45"
+crossbeam = "0.8.4"
+dashmap = "6.2.1"
+flate2 = "1.1.9"
+lazy_static = "1.5.0"
+log = "0.4.33"
+parking_lot = "0.12.5"
+tokio = { version = "1.52.3", features = ["full"] }

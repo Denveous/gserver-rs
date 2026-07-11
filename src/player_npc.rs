@@ -1,0 +1,702 @@
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use std::collections::HashMap;
+
+use crate::player::Player;
+use crate::network::SocketSession;
+use crate::buffer::Buffer;
+use crate::protocol::*;
+use crate::util::{gtokenize_text, guntokenize_text};
+use crate::npc::{NPC, NPCType};
+use crate::weapon::{Weapon, ScriptClass};
+use crate::{log_info, log_warning, log_error};
+
+pub const PLTYPE_ANYNC: i32 = 0x8;
+pub const PLTYPE_ANYCLIENT: i32 = 0x1;
+
+fn nc_weapon_path(name: &str) -> String {
+    format!("WEAPONS/{}", name.trim())
+}
+
+fn nc_class_path(name: &str) -> String {
+    format!("CLASSES/{}", name.trim())
+}
+
+fn nc_npc_path(name: &str) -> String {
+    format!("NPCS/{}", name.trim())
+}
+
+fn decode_nc_script_text(script: &str) -> String {
+    if script.contains('\u{0087}') || script.contains('\u{00A7}') { // a7 is section sign
+        return script.replace('\u{00A7}', "\n").replace('\u{0087}', "\n"); // To be safe
+    }
+    if script.starts_with('"') || script.contains("\",") || script.contains(",\"") {
+        return guntokenize_text(script);
+    }
+    script.to_string()
+}
+
+fn match_pattern(pattern: &str, s: &str) -> bool {
+    // Basic glob logic for *
+    if pattern.ends_with('*') {
+        let prefix = &pattern[..pattern.len() - 1];
+        s.starts_with(prefix)
+    } else if pattern.starts_with('*') {
+        let suffix = &pattern[1..];
+        s.ends_with(suffix)
+    } else {
+        s == pattern
+    }
+}
+
+impl Player {
+    pub fn nc_file_rights(&self, file_path: &str) -> String {
+        let mut path = file_path.trim().trim_start_matches('/').replace("\\", "/");
+        if path.is_empty() || path.contains("..") || path.contains(':') {
+            return String::new();
+        }
+        
+        let mut right_set = HashMap::new();
+        for entry in self.folder_list.lines() {
+            let entry = entry.trim();
+            if entry.is_empty() { continue; }
+            
+            let mut rights = "r".to_string();
+            let mut pattern = entry;
+            
+            if let Some(space_idx) = entry.find(' ') {
+                rights = entry[..space_idx].trim().to_lowercase();
+                pattern = entry[space_idx..].trim();
+            }
+            
+            let deny = rights.starts_with('-');
+            if deny {
+                rights = rights[1..].to_string();
+            }
+            
+            let pattern = pattern.trim().trim_start_matches('/').replace("\\", "/");
+            if pattern.is_empty() || pattern.contains("..") || pattern.contains(':') {
+                continue;
+            }
+            
+            if match_pattern(&pattern, &path) {
+                for c in rights.chars() {
+                    if c == 'r' || c == 'w' {
+                        if deny {
+                            right_set.remove(&c);
+                        } else {
+                            right_set.insert(c, true);
+                        }
+                    }
+                }
+            }
+        }
+        
+        let mut out_rights = String::new();
+        if *right_set.get(&'r').unwrap_or(&false) { out_rights.push('r'); }
+        if *right_set.get(&'w').unwrap_or(&false) { out_rights.push('w'); }
+        out_rights
+    }
+    
+    pub fn nc_file_has_right(&self, file_path: &str, right: char) -> bool {
+        if self.folder_list.is_empty() {
+            return true;
+        }
+        self.nc_file_rights(file_path).contains(right)
+    }
+
+    pub async fn send_to_nc(&self, msg: &str) {
+        let buf = Buffer::from_bytes(msg.as_bytes().to_vec());
+        // For simplicity, just log it. Actual logic would broadcast to NCs
+        log_info!("[To NC] {}", msg);
+    }
+    
+    pub async fn msg_pli_nc_listnpcs(&mut self, session: &mut SocketSession, _packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted LISTNPCS (non-NC)", self.account_name);
+            return true;
+        }
+        
+        let srv = self.server.read().await;
+        for (_, npc_arc) in &srv.npcs {
+            let npc = npc_arc.read().await;
+            if npc.npc_type == NPCType::DBNPC {
+                let mut buf = Buffer::new();
+                buf.write_byte(PLO_NC_NPCADD);
+                buf.write_gint(npc.id);
+                buf.write_gchar(NPCPROP_NAME);
+                buf.write_gchar(npc.npc_name.len() as u8);
+                buf.write_bytes(npc.npc_name.as_bytes());
+                buf.write_gchar(NPCPROP_TYPE);
+                buf.write_gchar(npc.script_type.len() as u8);
+                buf.write_bytes(npc.script_type.as_bytes());
+                buf.write_gchar(NPCPROP_CURLEVEL);
+                buf.write_gchar(npc.level_name.len() as u8);
+                buf.write_bytes(npc.level_name.as_bytes());
+                let _ = session.write_packet(&buf.bytes()).await;
+            }
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcget(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCGET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let npc = npc_arc.read().await;
+            let mut dump = String::new();
+            for (k, v) in &npc.flag_list {
+                dump.push_str(&format!("{}={}\n", k, v));
+            }
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_NPCATTRIBUTES);
+            buf2.write_bytes(gtokenize_text(&dump).as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcdelete(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCDELETE (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        
+        let mut srv = self.server.write().await;
+        let npc_opt = srv.npcs.get(&npc_id).cloned();
+        if let Some(npc_arc) = npc_opt {
+            let npc = npc_arc.read().await;
+            if npc.npc_type == NPCType::DBNPC {
+                if !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'w') {
+                    self.send_to_nc(&format!("{} prob: insufficient rights to delete npc {}", self.account_name, npc.npc_name)).await;
+                    return true;
+                }
+                let npc_name = npc.npc_name.clone();
+                drop(npc);
+                srv.npcs.remove(&npc_id);
+                let _ = srv.fs.delete_file(&format!("npcs/npc{}.txt", npc_name));
+                
+                let mut buf2 = Buffer::new();
+                buf2.write_byte(PLO_NC_NPCDELETE);
+                buf2.write_gint(npc_id);
+                // Would broadcast to ANYNC
+                let _ = session.write_packet(&buf2.bytes()).await;
+                
+                let log_msg = format!("NPC {} deleted by {}", npc_name, self.account_name);
+                log_info!("{}", log_msg);
+                self.send_to_nc(&log_msg).await;
+            }
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcreset(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCRESET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let mut npc = npc_arc.write().await;
+            if npc.npc_type == NPCType::DBNPC {
+                if !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'w') {
+                    self.send_to_nc(&format!("{} prob: insufficient rights to reset npc {}", self.account_name, npc.npc_name)).await;
+                    return true;
+                }
+                npc.script = String::new();
+                // Stub save database npc
+                let _ = srv.fs.save_file(&format!("npcs/npc{}.txt", npc.npc_name), &[]);
+                
+                let log_msg = format!("NPC script of {} reset by {}", npc.npc_name, self.account_name);
+                log_info!("{}", log_msg);
+                self.send_to_nc(&log_msg).await;
+            }
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcscriptget(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCSCRIPTGET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let npc = npc_arc.read().await;
+            if npc.npc_type == NPCType::DBNPC && !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'r') {
+                self.send_to_nc(&format!("{} prob: insufficient rights to read npc {}", self.account_name, npc.npc_name)).await;
+                return true;
+            }
+            let code = npc.script.clone();
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_NPCSCRIPT);
+            buf2.write_gint(npc_id);
+            buf2.write_bytes(gtokenize_text(&code).as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcwarp(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCWARP (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        let npc_x = in_buf.read_gchar() as f32 / 2.0;
+        let npc_y = in_buf.read_gchar() as f32 / 2.0;
+        let npc_level_name = in_buf.read_string();
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let mut npc = npc_arc.write().await;
+            if npc.npc_type == NPCType::DBNPC && !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'w') {
+                self.send_to_nc(&format!("{} prob: insufficient rights to warp npc {}", self.account_name, npc.npc_name)).await;
+                return true;
+            }
+            npc.level_name = npc_level_name.clone();
+            npc.x = (npc_x * 16.0) as i16;
+            npc.y = (npc_y * 16.0) as i16;
+            if npc.npc_type == NPCType::DBNPC {
+                let _ = srv.fs.save_file(&format!("npcs/npc{}.txt", npc.npc_name), &[]);
+            }
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcflagsget(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCFLAGSGET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let npc = npc_arc.read().await;
+            if npc.npc_type == NPCType::DBNPC && !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'r') {
+                self.send_to_nc(&format!("{} prob: insufficient rights to read npc {}", self.account_name, npc.npc_name)).await;
+                return true;
+            }
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_NPCFLAGS);
+            buf2.write_gint(npc_id);
+            let mut flags_str = String::new();
+            if !npc.flag_list.is_empty() {
+                let mut flags: Vec<&String> = npc.flag_list.keys().collect();
+                flags.sort();
+                for flag in flags {
+                    flags_str.push_str(&format!("{}={}\n", flag, npc.flag_list[flag]));
+                }
+            }
+            buf2.write_bytes(gtokenize_text(&flags_str).as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcscriptset(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCSCRIPTSET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        let npc_script = guntokenize_text(&in_buf.read_string());
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let mut npc = npc_arc.write().await;
+            if npc.npc_type == NPCType::DBNPC && !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'w') {
+                self.send_to_nc(&format!("{} prob: insufficient rights to write npc {}", self.account_name, npc.npc_name)).await;
+                return true;
+            }
+            npc.script = npc_script;
+            // stub save
+            let _ = srv.fs.save_file(&format!("npcs/npc{}.txt", npc.npc_name), &[]);
+            let log_msg = format!("NPC script of {} updated by {}", npc.npc_name, self.account_name);
+            log_info!("{}", log_msg);
+            self.send_to_nc(&log_msg).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcflagsset(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCFLAGSSET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_id = in_buf.read_gint();
+        let npc_flags = guntokenize_text(&in_buf.read_string());
+        
+        let srv = self.server.read().await;
+        if let Some(npc_arc) = srv.npcs.get(&npc_id) {
+            let mut npc = npc_arc.write().await;
+            if npc.npc_type == NPCType::DBNPC && !self.nc_file_has_right(&nc_npc_path(&npc.npc_name), 'w') {
+                self.send_to_nc(&format!("{} prob: insufficient rights to write npc {}", self.account_name, npc.npc_name)).await;
+                return true;
+            }
+            let mut new_flags = HashMap::new();
+            for line in npc_flags.lines() {
+                let line = line.trim();
+                if line.is_empty() { continue; }
+                let parts: Vec<&str> = line.splitn(2, '=').collect();
+                let flag_name = parts[0].trim().to_string();
+                if flag_name.is_empty() { continue; }
+                let flag_value = if parts.len() == 2 { parts[1].to_string() } else { String::new() };
+                new_flags.insert(flag_name, flag_value);
+            }
+            npc.flag_list = new_flags;
+            let _ = srv.fs.save_file(&format!("npcs/npc{}.txt", npc.npc_name), &[]);
+            let log_msg = format!("NPC flags of {} updated by {}", npc.npc_name, self.account_name);
+            log_info!("{}", log_msg);
+            self.send_to_nc(&log_msg).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_npcadd(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted NPCADD (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let npc_data = guntokenize_text(&in_buf.read_string());
+        let parts: Vec<&str> = npc_data.split('\n').collect();
+        if parts.len() < 7 { return true; }
+        
+        let npc_name = parts[0].trim().to_string();
+        if npc_name.is_empty() { return true; }
+        let npc_id_str = parts[1];
+        let script_type = parts[2].to_string();
+        let scripter = parts[3].to_string();
+        let npc_level_name = parts[4].to_string();
+        let npc_x = parts[5].parse::<f32>().unwrap_or(0.0);
+        let npc_y = parts[6].parse::<f32>().unwrap_or(0.0);
+        let npc_id = npc_id_str.parse::<u32>().unwrap_or(0);
+        
+        let mut new_npc = NPC::new(NPCType::DBNPC);
+        if npc_id >= 1000 {
+            new_npc.id = npc_id;
+        }
+        new_npc.npc_name = npc_name.clone();
+        new_npc.script_type = script_type;
+        new_npc.scripter = scripter;
+        new_npc.x = (npc_x * 16.0) as i16;
+        new_npc.y = (npc_y * 16.0) as i16;
+        new_npc.level_name = npc_level_name.clone();
+        
+        let mut srv = self.server.write().await;
+        if new_npc.id == 0 || srv.npcs.contains_key(&new_npc.id) {
+            let mut highest_id = 999;
+            for k in srv.npcs.keys() {
+                if *k > highest_id { highest_id = *k; }
+            }
+            new_npc.id = highest_id + 1;
+        }
+        let added_id = new_npc.id;
+        let arc_npc = Arc::new(RwLock::new(new_npc));
+        srv.npcs.insert(added_id, arc_npc.clone());
+        
+        let _ = srv.fs.save_file(&format!("npcs/npc{}.txt", npc_name), &[]);
+        
+        let mut buf2 = Buffer::new();
+        buf2.write_byte(PLO_NC_NPCADD);
+        {
+            let npc = arc_npc.read().await;
+            buf2.write_gint(npc.id);
+            buf2.write_gchar(NPCPROP_NAME);
+            buf2.write_gchar(npc.npc_name.len() as u8);
+            buf2.write_bytes(npc.npc_name.as_bytes());
+            buf2.write_gchar(NPCPROP_TYPE);
+            buf2.write_gchar(npc.script_type.len() as u8);
+            buf2.write_bytes(npc.script_type.as_bytes());
+            buf2.write_gchar(NPCPROP_CURLEVEL);
+            buf2.write_gchar(npc.level_name.len() as u8);
+            buf2.write_bytes(npc.level_name.as_bytes());
+        }
+        let _ = session.write_packet(&buf2.bytes()).await;
+        
+        let log_msg = format!("NPC {} added by {}", npc_name, self.account_name);
+        log_info!("{}", log_msg);
+        self.send_to_nc(&log_msg).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_classedit(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted CLASSEDIT (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let class_name = in_buf.read_string();
+        if !self.nc_file_has_right(&nc_class_path(&class_name), 'r') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to read class {}", self.account_name, class_name)).await;
+            return true;
+        }
+        let srv = self.server.read().await;
+        if let Some(class_obj) = srv.classes.get(&class_name) {
+            let class_code = gtokenize_text(&class_obj.script);
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_CLASSGET);
+            buf2.write_byte(class_name.len() as u8);
+            buf2.write_bytes(class_name.as_bytes());
+            buf2.write_bytes(class_code.as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_classadd(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted CLASSADD (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let class_name_len = in_buf.read_gchar();
+        let class_name = String::from_utf8_lossy(&in_buf.read_bytes(class_name_len as usize)).to_string();
+        let class_code = guntokenize_text(&in_buf.read_string());
+        
+        if !self.nc_file_has_right(&nc_class_path(&class_name), 'w') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to write class {}", self.account_name, class_name)).await;
+            return true;
+        }
+        let mut srv = self.server.write().await;
+        let has_class = srv.classes.contains_key(&class_name);
+        srv.classes.insert(class_name.clone(), ScriptClass { name: class_name.clone(), script: class_code.clone() });
+        let _ = srv.fs.save_file(&format!("scripts/{}.txt", class_name), class_code.as_bytes());
+        
+        if !has_class {
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_CLASSADD);
+            buf2.write_bytes(class_name.as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        }
+        let action = if has_class { "updated" } else { "added" };
+        let log_msg = format!("Script {} {} by {}", class_name, action, self.account_name);
+        log_info!("{}", log_msg);
+        self.send_to_nc(&log_msg).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_localnpcsget(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted LOCALNPCSGET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let level_name = in_buf.read_string();
+        if level_name.is_empty() { return true; }
+        
+        let mut dump = format!("Variables dump from level {}\n", level_name);
+        let srv = self.server.read().await;
+        // Collect local NPCs from level... stub
+        // Actually, skipping deep logic of level fetching as Level is not fully available in player_npc.
+        dump = gtokenize_text(&dump);
+        let mut buf2 = Buffer::new();
+        buf2.write_byte(PLO_NC_LEVELDUMP);
+        buf2.write_bytes(dump.as_bytes());
+        let _ = session.write_packet(&buf2.bytes()).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_weaponlistget(&mut self, session: &mut SocketSession, _packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted WEAPONLISTGET (non-NC)", self.account_name);
+            return true;
+        }
+        let mut buf = Buffer::new();
+        buf.write_byte(PLO_NC_WEAPONLISTGET);
+        let srv = self.server.read().await;
+        let mut names: Vec<String> = srv.weapons.keys().cloned().collect();
+        names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        for name in names {
+            // WriteString8Encoded equivalent - we assume write_gchar_string is equivalent for now
+            // Wait, PLO_NC_WEAPONLISTGET might need specific encoding
+            buf.write_string8_encoded(&name);
+        }
+        let _ = session.write_packet(&buf.bytes()).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_weaponget(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted WEAPONGET (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let weapon_name = in_buf.read_string();
+        
+        if !self.nc_file_has_right(&nc_weapon_path(&weapon_name), 'r') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to read weapon {}", self.account_name, weapon_name)).await;
+            return true;
+        }
+        
+        let srv = self.server.read().await;
+        if let Some(weapon) = srv.weapons.get(&weapon_name) {
+            let script = weapon.script.replace('\n', "\u{00A7}"); // replacing \n with section sign
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_WEAPONGET);
+            buf2.write_string8_encoded(&weapon_name);
+            buf2.write_string8_encoded(&weapon.image);
+            buf2.write_bytes(script.as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+        } else {
+            self.send_to_nc(&format!("{} prob: weapon {} doesn't exist", self.account_name, weapon_name)).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_weaponadd(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted WEAPONADD (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let weapon_name_len = in_buf.read_gchar();
+        let weapon_name = String::from_utf8_lossy(&in_buf.read_bytes(weapon_name_len as usize)).to_string();
+        let weapon_image_len = in_buf.read_gchar();
+        let weapon_image = String::from_utf8_lossy(&in_buf.read_bytes(weapon_image_len as usize)).to_string();
+        let weapon_code = decode_nc_script_text(&in_buf.read_string());
+        
+        if !self.nc_file_has_right(&nc_weapon_path(&weapon_name), 'w') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to write weapon {}", self.account_name, weapon_name)).await;
+            return true;
+        }
+        
+        let mut srv = self.server.write().await;
+        let mut action_taken = "added";
+        if let Some(weapon) = srv.weapons.get_mut(&weapon_name) {
+            weapon.image = weapon_image.clone();
+            weapon.script = weapon_code.clone();
+            action_taken = "updated";
+        } else {
+            let mut new_weapon = Weapon::new();
+            new_weapon.name = weapon_name.clone();
+            new_weapon.image = weapon_image.clone();
+            new_weapon.script = weapon_code.clone();
+            srv.weapons.insert(weapon_name.clone(), new_weapon);
+        }
+        
+        let log_msg = format!("Weapon/GUI-script {} {} by {}", weapon_name, action_taken, self.account_name);
+        log_info!("{}", log_msg);
+        self.send_to_nc(&log_msg).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_weapondelete(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted WEAPONDELETE (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let weapon_name = in_buf.read_string();
+        if !self.nc_file_has_right(&nc_weapon_path(&weapon_name), 'w') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to delete weapon {}", self.account_name, weapon_name)).await;
+            return true;
+        }
+        
+        let mut srv = self.server.write().await;
+        if srv.weapons.remove(&weapon_name).is_some() {
+            let _ = srv.fs.delete_file(&format!("weapons/{}.txt", weapon_name));
+            
+            let mut del_buf = Buffer::new();
+            del_buf.write_byte(PLO_NPCWEAPONDEL);
+            del_buf.write_bytes(weapon_name.as_bytes());
+            // Broadcast logic here omitted for brevity, writing back to session for now
+            let _ = session.write_packet(&del_buf.bytes()).await;
+            
+            let log_msg = format!("Weapon {} deleted by {}", weapon_name, self.account_name);
+            log_info!("{}", log_msg);
+            self.send_to_nc(&log_msg).await;
+        } else {
+            self.send_to_nc(&format!("{} prob: weapon {} doesn't exist", self.account_name, weapon_name)).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_classdelete(&mut self, session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted CLASSDELETE (non-NC)", self.account_name);
+            return true;
+        }
+        if packet.len() <= 1 { return true; }
+        let mut in_buf = Buffer::from_bytes(packet[1..].to_vec());
+        let class_name = in_buf.read_string();
+        if !self.nc_file_has_right(&nc_class_path(&class_name), 'w') {
+            self.send_to_nc(&format!("{} prob: insufficient rights to delete class {}", self.account_name, class_name)).await;
+            return true;
+        }
+        
+        let mut srv = self.server.write().await;
+        if srv.classes.remove(&class_name).is_some() {
+            let _ = srv.fs.delete_file(&format!("scripts/{}.txt", class_name));
+            let mut buf2 = Buffer::new();
+            buf2.write_byte(PLO_NC_CLASSDELETE);
+            buf2.write_bytes(class_name.as_bytes());
+            let _ = session.write_packet(&buf2.bytes()).await;
+            
+            let log_msg = format!("{} has deleted class {}", self.account_name, class_name);
+            log_info!("{}", log_msg);
+            self.send_to_nc(&log_msg).await;
+        } else {
+            self.send_to_nc(&format!("error: {} does not exist on this server!", class_name)).await;
+        }
+        true
+    }
+
+    pub async fn msg_pli_nc_levellistget(&mut self, session: &mut SocketSession, _packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted LEVELLISTGET (non-NC)", self.account_name);
+            return true;
+        }
+        let level_list = "level1.nw\nlevel2.nw\n"; // Stubbed list
+        let mut buf2 = Buffer::new();
+        buf2.write_byte(PLO_NC_LEVELLIST);
+        buf2.write_bytes(gtokenize_text(level_list).as_bytes());
+        let _ = session.write_packet(&buf2.bytes()).await;
+        true
+    }
+
+    pub async fn msg_pli_nc_levellistset(&mut self, _session: &mut SocketSession, packet: &[u8]) -> bool {
+        if self.player_type & PLTYPE_ANYNC == 0 {
+            log_warning!("[Hack] {} attempted LEVELLISTSET (non-NC)", self.account_name);
+            return true;
+        }
+        log_info!("NC LEVELLISTSET ignored from {} ({} bytes)", self.account_name, packet.len());
+        true
+    }
+}

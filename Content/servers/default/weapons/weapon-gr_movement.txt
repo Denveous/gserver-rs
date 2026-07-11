@@ -1,0 +1,34 @@
+GRAWP001
+REALNAME -gr_movement
+IMAGE wbomb1.png
+SCRIPT
+function onCreated() {
+ // temp.foo = "testing";
+ //echo(temp.foo SPC base64("kek"));
+ //temp.foo = findplayer("moondeath");
+ //temp.foo.sendpm("kek"); 
+ echo("kek");
+  //scheduleEvent(1, "Kek");
+  if (serverr.poopybutthole[0] == true) {
+    findplayer("moondeath").sendpm("kek");
+  }
+}
+
+function onKek() {
+  //echo("foo");  
+  scheduleEvent(1, "Kek");
+}
+
+function onActionServerside() {
+   echo("test" SPC params[0] SPC player.account);
+   triggerclient("gui", name, "kek");
+}
+//#CLIENTSIDE
+//layer.chat = graalversion;
+function onActionClientside() {
+  player.chat = "clientside triggered form server:" SPC params;
+}
+function onCreated() {
+  triggerServer("gui", name, "from clientside", 1);
+}
+SCRIPTEND

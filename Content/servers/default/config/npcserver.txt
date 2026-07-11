@@ -1,0 +1,15 @@
+# Enables the modular GS2 NPC-server bridge.
+# In internal mode, NC connects through the main GServer listener.
+enabled = true
+mode = internal
+
+# ID sent to RC clients in the NPC-server address packet.
+id = 0
+
+# AUTO resolves from ns_ip, localip, serverip, then 127.0.0.1.
+host = AUTO
+
+# AUTO uses ncport when present, otherwise serverport.
+port = AUTO
+
+account = (npcserver)

@@ -1,0 +1,10 @@
+[09:49 AM] OpenGraal GS2Emu
+[09:49 AM] 3.0.9-RS
+[09:49 AM] Programmed by Terry A. Davis.
+[09:49 AM] :: Determining the server to start... 
+[09:49 AM] success! (found Content folder)
+[09:49 AM] :: Starting server: Content.
+[09:49 AM] :: Started server Content (GServer-RS)
+[09:49 AM] :: Press CTRL+C to close the program.  DO NOT CLICK THE X, you will LOSE data!
+[09:49 AM] [INFO] :: Initializing listserver socket (listserver.graal.in:14900).
+[09:49 AM] [INFO] :: listserver - Connected (listserver.graal.in:14900).
