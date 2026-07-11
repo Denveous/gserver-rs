@@ -1,1 +1,6 @@
 /target
+Content/
+GServer.log
+append_rc.rs
+fix.py
+gserver-rs
