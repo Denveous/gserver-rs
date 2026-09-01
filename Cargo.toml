@@ -1,0 +1,30 @@
+[package]
+name = "gscript-game-server"
+version = "0.1.262"
+edition = "2021"
+description = "Rust implementation of the GScript GameServer"
+license = "GPL-3.0-only"
+
+[lib]
+name = "gscript_game_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gameserver"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22.1"
+bzip2 = "0.4.4"
+flate2 = "1.1.9"
+httparse = "1.10.1"
+npcserver = { path = "crates/npcserver" }
+rand = "0.8.6"
+reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
+ring = "0.17.14"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

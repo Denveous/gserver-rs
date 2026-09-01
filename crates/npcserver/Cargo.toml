@@ -1,0 +1,28 @@
+[package]
+name = "npcserver"
+version = "0.1.0"
+edition = "2024"
+description = "Rust NPCServer runtime used by the GServer scripting layer"
+license = "MIT"
+
+[lib]
+name = "npcserver"
+path = "src/lib.rs"
+
+[[bin]]
+name = "npcserver"
+path = "src/bin/npcserver.rs"
+
+[dependencies]
+base64 = "0.22.1"
+chrono = { version = "0.4.45", default-features = true }
+flate2 = "1.1.9"
+hexaparser = { path = "../hexaparser" }
+rand = "0.8.6"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+url = "2.5.8"
+
+[profile.release]
+lto = true
+codegen-units = 1

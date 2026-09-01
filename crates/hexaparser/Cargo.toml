@@ -1,0 +1,19 @@
+[package]
+name = "hexaparser"
+version = "1.0.0"
+edition = "2021"
+description = "GameScript 1/2 compiler and bytecode decompiler"
+license = "MIT"
+
+[lib]
+name = "hexaparser"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "gs-byte"
+path = "src/bin/gs-byte.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+

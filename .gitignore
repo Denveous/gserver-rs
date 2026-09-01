@@ -1,0 +1,6 @@
+/target/
+*.log
+*.bat
+*.exe
+*.tmp
+nul
