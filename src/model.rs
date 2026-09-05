@@ -10799,11 +10799,14 @@ impl Server {
         self.apply_gs2_vm_result(result.clone());
         if let Some(player) = player {
             for trigger in &result.client_triggers {
-                let action = if trigger.args.is_empty() {
-                    trigger.name.clone()
-                } else {
-                    format!("{},{}", trigger.name, trigger.args.join(","))
-                };
+                // Mirror the reference server: client-bound trigger actions
+                // carry the "clientside," prefix so the client routes them
+                // to the weapon's onActionClientside handler.
+                let mut action = format!("clientside,{}", trigger.name);
+                if !trigger.args.is_empty() {
+                    action.push(',');
+                    action.push_str(&trigger.args.join(","));
+                }
                 player.send_plo_triggeraction(0, 0, 0, 0, &action);
             }
         }
@@ -10871,11 +10874,14 @@ impl Server {
         self.commit_gs2_npc_state(&result);
         if let Some(player) = player {
             for trigger in &result.client_triggers {
-                let action = if trigger.args.is_empty() {
-                    trigger.name.clone()
-                } else {
-                    format!("{},{}", trigger.name, trigger.args.join(","))
-                };
+                // Mirror the reference server: client-bound trigger actions
+                // carry the "clientside," prefix so the client routes them
+                // to the NPC script's onActionClientside handler.
+                let mut action = format!("clientside,{}", trigger.name);
+                if !trigger.args.is_empty() {
+                    action.push(',');
+                    action.push_str(&trigger.args.join(","));
+                }
                 player.send_plo_triggeraction(0, id, 0, 0, &action);
             }
         }
@@ -13614,7 +13620,11 @@ impl Player {
             updated.image = image;
             updated.script = script;
             updated.bytecode = compile_result.bytecode;
-            updated.bytecode_file.clear();
+            updated.bytecode_file = if updated.bytecode.is_empty() {
+                String::new()
+            } else {
+                weapon_bytecode_file_name(&updated.name)
+            };
             updated.vm_this.clear();
             updated.vm_revision = updated.vm_revision.wrapping_add(1);
             server.delete_weapon(&name);
@@ -13635,6 +13645,9 @@ impl Player {
             new_weapon.image = image;
             new_weapon.script = script;
             new_weapon.bytecode = compile_result.bytecode;
+            if !new_weapon.bytecode.is_empty() {
+                new_weapon.bytecode_file = weapon_bytecode_file_name(&new_weapon.name);
+            }
             new_weapon.modified = true;
             let new_weapon = Arc::new(new_weapon);
             server.add_weapon(new_weapon.clone());
