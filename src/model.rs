@@ -15629,7 +15629,15 @@ impl Player {
             if !self.remove_item_for_drop(item) {
                 return true;
             }
-            if let (Some(level), Some(server)) = (self.current_level(), self.server()) {
+            let server = self.server();
+            let level = self.current_level().or_else(|| {
+                server.as_ref().and_then(|server| {
+                    server
+                        .get_level(&self.level_name())
+                        .or_else(|| server.get_level(&clean_level_name(&self.level_name())))
+                })
+            });
+            if let (Some(level), Some(server)) = (level, server) {
                 normal_item = level.add_item_for_server(&server, x, y, item);
             }
         }
@@ -15650,7 +15658,14 @@ impl Player {
             let mut buf = Buffer::from_bytes(&packet[1..]);
             let x = f32::from(buf.read_gchar()) / 2.0;
             let y = f32::from(buf.read_gchar()) / 2.0;
-            if let Some(level) = self.current_level() {
+            let level = self.current_level().or_else(|| {
+                self.server().and_then(|server| {
+                    server
+                        .get_level(&self.level_name())
+                        .or_else(|| server.get_level(&clean_level_name(&self.level_name())))
+                })
+            });
+            if let Some(level) = level {
                 item = level.remove_item_at(x, y);
             }
         }
