@@ -18539,9 +18539,13 @@ impl Player {
                 // after handleLogin returns.
                 self.state.lock().unwrap().defer_client_login = false;
                 let id = self.id();
-                if let (Some(server), Some(player)) =
-                    (self.server(), self.self_ref.lock().unwrap().upgrade())
-                {
+                // Scope the self_ref guard to this statement. Keeping it alive
+                // for the if-let body would self-deadlock when the body
+                // re-locks self_ref below (std::sync::Mutex is not
+                // reentrant), freezing the polling thread and with it the
+                // whole server on every client login.
+                let upgraded = self.self_ref.lock().unwrap().upgrade();
+                if let (Some(server), Some(player)) = (self.server(), upgraded) {
                     let added = server.add_player(player, id);
                     if !added {
                         continue;
