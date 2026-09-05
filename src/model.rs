@@ -7738,12 +7738,12 @@ impl Server {
             nonempty(&self.settings.get("serverport")).unwrap_or_else(|| "14802".to_string());
         let address = format!(":{port}");
         // Bind the unspecified address. Rust's socket address parser does not
-        // accept the shorthand ":port", so use an IPv6 wildcard first and
-        // retain an IPv4 wildcard fallback
+        // accept the shorthand ":port", so use an IPv4 wildcard first and
+        // retain an IPv6 wildcard fallback
         // for hosts configured IPv6-only.
-        let listener = TcpListener::bind(format!("[::]:{port}"))
-            .or_else(|ipv6_error| {
-                TcpListener::bind(format!("0.0.0.0:{port}")).map_err(|_| ipv6_error)
+        let listener = TcpListener::bind(format!("0.0.0.0:{port}"))
+            .or_else(|ipv4_error| {
+                TcpListener::bind(format!("[::]:{port}")).map_err(|_| ipv4_error)
             })
             .map_err(|error| {
                 io::Error::new(
