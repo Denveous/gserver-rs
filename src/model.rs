@@ -22,7 +22,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{FileSystem, Logger, Settings};
 use crate::network::{
-    zlib_compress, zlib_decompress, Buffer, Encryption, SocketManager, SocketStub,
+    zlib_compress, zlib_decompress, zlib_decompress_with_fallback, Buffer, Encryption,
+    SocketManager, SocketStub,
 };
 use crate::protocol::*;
 use crate::websocket::{
@@ -2087,19 +2088,44 @@ pub struct LevelChest {
     pub item_type: LevelItemType,
     pub sign_index: i32,
 }
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct LevelHorse {
     pub image: String,
     pub x: f32,
     pub y: f32,
     pub dir: u8,
     pub bushes: u8,
+    pub expires_at: SystemTime,
 }
-#[derive(Clone, Debug, Default)]
+impl Default for LevelHorse {
+    fn default() -> Self {
+        Self {
+            image: String::new(),
+            x: 0.0,
+            y: 0.0,
+            dir: 0,
+            bushes: 0,
+            expires_at: UNIX_EPOCH,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct LevelItem {
     pub x: f32,
     pub y: f32,
     pub item_type: LevelItemType,
+    pub expires_at: SystemTime,
+}
+impl Default for LevelItem {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            item_type: ITEM_GREEN_RUPEE,
+            expires_at: UNIX_EPOCH,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2111,6 +2137,8 @@ pub struct LevelLink {
     pub dest_level: String,
     pub dest_x: f32,
     pub dest_y: f32,
+    pub dest_x_text: String,
+    pub dest_y_text: String,
 }
 
 impl LevelLink {
@@ -2121,15 +2149,25 @@ impl LevelLink {
         Self::new()
     }
     pub fn get_link_str(&self) -> String {
+        let dest_x = if self.dest_x_text.is_empty() {
+            format_level_link_coordinate(self.dest_x)
+        } else {
+            self.dest_x_text.clone()
+        };
+        let dest_y = if self.dest_y_text.is_empty() {
+            format_level_link_coordinate(self.dest_y)
+        } else {
+            self.dest_y_text.clone()
+        };
         format!(
-            "{} {} {} {} {} {:.0} {:.0}",
+            "{} {} {} {} {} {} {}",
             self.dest_level,
             self.x as i32,
             self.y as i32,
             self.width as i32,
             self.height as i32,
-            self.dest_x,
-            self.dest_y
+            dest_x,
+            dest_y
         )
     }
     pub fn GetLinkStr(&self) -> String {
@@ -2145,6 +2183,8 @@ impl LevelLink {
         self.y = parts[2 + offset].parse().unwrap_or(0.0);
         self.width = parts[3 + offset].parse().unwrap_or(0.0);
         self.height = parts[4 + offset].parse().unwrap_or(0.0);
+        self.dest_x_text = parts[5 + offset].to_string();
+        self.dest_y_text = parts[6 + offset].to_string();
         self.dest_x = parts[5 + offset].parse().unwrap_or(0.0);
         self.dest_y = parts[6 + offset].parse().unwrap_or(0.0);
     }
@@ -2200,13 +2240,15 @@ impl LevelLink {
         self.set_new_level(value)
     }
     pub fn set_new_x(&mut self, value: f32) {
-        self.dest_x = value
+        self.dest_x = value;
+        self.dest_x_text.clear();
     }
     pub fn SetNewX(&mut self, value: f32) {
         self.set_new_x(value)
     }
     pub fn set_new_y(&mut self, value: f32) {
-        self.dest_y = value
+        self.dest_y = value;
+        self.dest_y_text.clear();
     }
     pub fn SetNewY(&mut self, value: f32) {
         self.set_new_y(value)
@@ -2235,6 +2277,10 @@ impl LevelLink {
     pub fn SetHeight(&mut self, value: f32) {
         self.set_height(value)
     }
+}
+
+fn format_level_link_coordinate(value: f32) -> String {
+    format!("{value}")
 }
 
 const SIGN_TEXT: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?-.,#>()#####\"####':/~&### <####;\n";
@@ -2278,7 +2324,10 @@ impl LevelSign {
         let mut buf = Buffer::new();
         buf.write_gchar(self.x as u8).write_gchar(self.y as u8);
         if player.is_some() {
-            buf.write(&encode_sign(&self.unformatted_text).into_bytes());
+            let text = player
+                .map(|value| value.translate(&self.unformatted_text))
+                .unwrap_or_else(|| self.unformatted_text.clone());
+            buf.write(&encode_sign(&text).into_bytes());
         } else {
             buf.write(self.text.as_bytes());
         }
@@ -2470,7 +2519,53 @@ pub fn item_id(name: &str) -> LevelItemType {
 }
 
 fn is_respawning_tile(tile: i16) -> bool {
-    matches!(tile, 2 | 0x1a4 | 0x1ff | 0x2ac | 0x3ff)
+    matches!(
+        tile,
+        0x1ff | 0x3ff | 0x2ac | 0x002 | 0x200 | 0x022 | 0x3de | 0x1a4 | 0x14a | 0x674 | 0x72a
+    )
+}
+
+fn is_rupee_item(item_type: LevelItemType) -> bool {
+    matches!(
+        item_type,
+        ITEM_GREEN_RUPEE | ITEM_BLUE_RUPEE | ITEM_RED_RUPEE | ITEM_GOLD_RUPEE
+    )
+}
+
+fn rupee_item_value(item_type: LevelItemType) -> i32 {
+    match item_type {
+        ITEM_GOLD_RUPEE => 100,
+        ITEM_RED_RUPEE => 30,
+        ITEM_BLUE_RUPEE => 5,
+        ITEM_GREEN_RUPEE => 1,
+        _ => 0,
+    }
+}
+
+fn npc_has_joined_class(npc: &Arc<NPC>, class_name: &str) -> bool {
+    if class_name.trim().is_empty() {
+        return false;
+    }
+    let (classes, script) = {
+        let state = npc.state.lock().unwrap();
+        (
+            state.vm_this.get("__classes").cloned(),
+            state.script.clone(),
+        )
+    };
+    if let Some(serde_json::Value::Array(values)) = classes {
+        if values.iter().any(|value| {
+            value
+                .as_str()
+                .is_some_and(|value| value.trim().eq_ignore_ascii_case(class_name.trim()))
+        }) {
+            return true;
+        }
+    }
+    script
+        .lines()
+        .filter_map(parse_gs2_join_line)
+        .any(|value| value.trim().eq_ignore_ascii_case(class_name.trim()))
 }
 
 fn shorts_to_bytes(shorts: &[i16]) -> Vec<u8> {
@@ -2734,16 +2829,17 @@ impl LevelBaddy {
             if item_type < 0 {
                 return;
             }
-            level.add_item_at(x, y, item_type);
-            let mut packet = Buffer::new();
-            packet
-                .write_byte(PLO_ITEMADD)
-                .write_byte((x * 2.0) as u8)
-                .write_byte((y * 2.0) as u8)
-                .write_byte(item_type as u8);
-            for id in level.get_players() {
-                if let Some(player) = server.get_player(id) {
-                    player.send_packet(&packet.data);
+            if level.add_item_for_server(&server, x, y, item_type) {
+                let mut packet = Buffer::new();
+                packet
+                    .write_byte(PLO_ITEMADD)
+                    .write_byte((x * 2.0) as u8)
+                    .write_byte((y * 2.0) as u8)
+                    .write_byte(item_type as u8);
+                for id in level.get_players() {
+                    if let Some(player) = server.get_player(id) {
+                        player.send(&packet);
+                    }
                 }
             }
         });
@@ -3094,11 +3190,12 @@ impl Level {
         if item_name(item_type).is_empty() {
             return;
         }
-        self.state
-            .write()
-            .unwrap()
-            .items
-            .push(LevelItem { x, y, item_type });
+        self.state.write().unwrap().items.push(LevelItem {
+            x,
+            y,
+            item_type,
+            expires_at: SystemTime::now() + Duration::from_secs(10),
+        });
     }
     pub fn addItem(&self, x: f32, y: f32, item_type: LevelItemType) {
         self.add_item_at(x, y, item_type)
@@ -3116,6 +3213,222 @@ impl Level {
     }
     pub fn removeItem(&self, x: f32, y: f32) -> LevelItemType {
         self.remove_item_at(x, y)
+    }
+    fn process_item_timeouts(&self, server: &Server) {
+        let now = SystemTime::now();
+        let expired = {
+            let mut state = self.state.write().unwrap();
+            let mut expired = Vec::new();
+            let mut index = 0;
+            while index < state.items.len() {
+                if state.items[index].expires_at != UNIX_EPOCH
+                    && now >= state.items[index].expires_at
+                {
+                    expired.push(state.items.remove(index));
+                } else {
+                    index += 1;
+                }
+            }
+            expired
+        };
+        for item in expired {
+            let mut packet = Buffer::new();
+            packet
+                .write_byte(PLO_ITEMDEL)
+                .write_gchar((item.x * 2.0) as u8)
+                .write_gchar((item.y * 2.0) as u8)
+                .write_gchar(item.item_type as u8);
+            for id in self.get_players() {
+                if let Some(player) = server.get_player(id) {
+                    if player.has_connection() {
+                        player.send(&packet);
+                    }
+                }
+            }
+        }
+    }
+    fn process_horse_timeouts(&self, server: &Server) {
+        let now = SystemTime::now();
+        let expired = {
+            let mut state = self.state.write().unwrap();
+            let mut expired = Vec::new();
+            let mut index = 0;
+            while index < state.horses.len() {
+                if state.horses[index].expires_at != UNIX_EPOCH
+                    && now >= state.horses[index].expires_at
+                {
+                    expired.push(state.horses.remove(index));
+                } else {
+                    index += 1;
+                }
+            }
+            expired
+        };
+        for horse in expired {
+            let mut packet = Buffer::new();
+            packet
+                .write_byte(PLO_HORSEDEL)
+                .write_gchar((horse.x * 2.0) as u8)
+                .write_gchar((horse.y * 2.0) as u8);
+            for id in self.get_players() {
+                if let Some(player) = server.get_player(id) {
+                    if player.has_connection() {
+                        player.send(&packet);
+                    }
+                }
+            }
+        }
+    }
+    fn process_baddy_timeouts(&self, server: &Server) {
+        let baddies = self
+            .state
+            .read()
+            .unwrap()
+            .baddies
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for baddy in baddies {
+            let now = SystemTime::now();
+            if baddy.timeout.is_none_or(|timeout| now < timeout) {
+                continue;
+            }
+            let mut updated = (*baddy).clone();
+            updated.timeout = None;
+            let mut remove = false;
+            let props =
+                if updated.baddy_type == 4 && updated.mode == BDMODE_HURT && updated.power == 1 {
+                    updated.mode = BDMODE_SWAMPSHOT;
+                    vec![BDPROP_MODE, BDMODE_SWAMPSHOT]
+                } else if updated.mode == BDMODE_DIE {
+                    updated.mode = BDMODE_DEAD;
+                    if updated.can_respawn {
+                        let seconds = server.settings.get_int("baddyrespawntime", 60);
+                        updated.timeout = if seconds >= 0 {
+                            now.checked_add(Duration::from_secs(seconds as u64))
+                        } else {
+                            now.checked_sub(Duration::from_secs(seconds.unsigned_abs() as u64))
+                        };
+                    } else {
+                        remove = true;
+                    }
+                    vec![BDPROP_MODE, BDMODE_DEAD]
+                } else {
+                    updated.reset();
+                    updated.get_props(server.settings.get_int("clientversion", 0))
+                };
+            if remove {
+                self.remove_baddy(updated.id);
+            } else {
+                self.state
+                    .write()
+                    .unwrap()
+                    .baddies
+                    .insert(updated.id, Arc::new(updated.clone()));
+            }
+            let mut packet = Buffer::new();
+            packet
+                .write_byte(PLO_BADDYPROPS)
+                .write_gchar(updated.id)
+                .write(&props);
+            for id in self.get_players() {
+                if let Some(player) = server.get_player(id) {
+                    if player.has_connection() {
+                        player.send(&packet);
+                    }
+                }
+            }
+        }
+    }
+    fn add_item_for_server(
+        &self,
+        server: &Server,
+        x: f32,
+        y: f32,
+        item_type: LevelItemType,
+    ) -> bool {
+        if !server.npc_server_running() {
+            self.add_item_at(x, y, item_type);
+            return true;
+        }
+        let class_name = if is_rupee_item(item_type) {
+            "gralats"
+        } else if item_type == ITEM_DARTS {
+            "darts"
+        } else {
+            self.add_item_at(x, y, item_type);
+            return true;
+        };
+        if server.get_class(class_name).is_none() {
+            self.add_item_at(x, y, item_type);
+            return true;
+        }
+        let pixel_x = ((x - 0.5) * 16.0) as i32;
+        let pixel_y = ((y - 0.5) * 16.0) as i32;
+        for npc in self.get_npcs() {
+            if !npc.matches_trigger_area(pixel_x, pixel_y, 32, 32)
+                || !npc_has_joined_class(&npc, class_name)
+            {
+                continue;
+            }
+            {
+                let mut state = npc.state.lock().unwrap();
+                if item_type == ITEM_DARTS {
+                    state.character.arrows += 1;
+                    let arrows = state.character.arrows;
+                    state
+                        .vm_this
+                        .insert("darts".to_string(), serde_json::Value::from(arrows));
+                    state
+                        .vm_this
+                        .insert("arrows".to_string(), serde_json::Value::from(arrows));
+                } else {
+                    state.character.gralats += rupee_item_value(item_type);
+                    let gralats = state.character.gralats;
+                    state
+                        .vm_this
+                        .insert("gralats".to_string(), serde_json::Value::from(gralats));
+                }
+            }
+            server.run_server_side_npc_event_for_player(&npc, "update", None, &[]);
+            server.send_npc_props_to_level(&npc);
+            return false;
+        }
+
+        let level = server.get_level(&self.get_name());
+        let npc = Arc::new(NPC::new(NPCType::LEVELNPC));
+        {
+            let mut state = npc.state.lock().unwrap();
+            state.x = (x * 16.0).round() as i16;
+            state.y = (y * 16.0).round() as i16;
+            state.script = format!("join(\"{class_name}\");");
+            state.script_type = "LOCALN".to_string();
+            state.level = level.clone();
+            if item_type == ITEM_DARTS {
+                state.character.arrows = 1;
+                state
+                    .vm_this
+                    .insert("darts".to_string(), serde_json::Value::from(1));
+                state
+                    .vm_this
+                    .insert("arrows".to_string(), serde_json::Value::from(1));
+            } else {
+                let value = rupee_item_value(item_type);
+                state.character.gralats = value;
+                state
+                    .vm_this
+                    .insert("gralats".to_string(), serde_json::Value::from(value));
+            }
+        }
+        if !server.add_npc(npc.clone()) {
+            self.add_item_at(x, y, item_type);
+            return true;
+        }
+        self.add_npc(npc.clone());
+        server.send_npc_props_to_level(&npc);
+        server.run_server_side_npc_event_for_player(&npc, "onCreated", None, &[]);
+        server.send_npc_props_to_level(&npc);
+        false
     }
     pub fn chest_key(&self, chest: &LevelChest) -> String {
         let level_name = self.get_name();
@@ -3230,19 +3543,21 @@ impl Level {
                         }
                     }
                 }
-                "CHEST" if parts.len() == 5 => state.chests.push(LevelChest {
-                    x: parse_i32(parts[1]),
-                    y: parse_i32(parts[2]),
-                    item_type: item_id(parts[3]),
-                    sign_index: parse_i32(parts[4]),
-                }),
+                "CHEST" if (4..=5).contains(&parts.len()) => {
+                    let sign_index = parts
+                        .get(4)
+                        .and_then(|value| value.parse::<i32>().ok())
+                        .unwrap_or(-1);
+                    state.chests.push(LevelChest {
+                        x: parse_i32(parts[1]),
+                        y: parse_i32(parts[2]),
+                        item_type: item_id(parts[3]),
+                        sign_index,
+                    });
+                }
                 "LINK" if parts.len() >= 8 => {
                     let mut link = LevelLink::default();
-                    link.x = parts[1].parse().unwrap_or(0.0);
-                    link.y = parts[2].parse().unwrap_or(0.0);
-                    link.dest_x = parts[4].parse().unwrap_or(0.0);
-                    link.dest_y = parts[5].parse().unwrap_or(0.0);
-                    link.dest_level = parts[6..parts.len() - 1].join(" ");
+                    link.parse_link_str(&parts[1..]);
                     state.links.push(link);
                 }
                 "SIGN" if parts.len() == 3 => {
@@ -3892,6 +4207,44 @@ pub fn guntokenize(value: &str) -> String {
     unescape_tokens(value)
 }
 
+fn parse_po_translations(data: &str) -> HashMap<String, String> {
+    let lines = data.replace('\r', "");
+    let lines = lines.split('\n').collect::<Vec<_>>();
+    let mut translations = HashMap::new();
+    let mut index = 0usize;
+    while index < lines.len() {
+        let line = lines[index].trim();
+        if !line.starts_with("msgid ") {
+            index += 1;
+            continue;
+        }
+        let mut key = parse_po_string(&line[6..]);
+        index += 1;
+        while index < lines.len() && lines[index].trim_start().starts_with('"') {
+            key.push('\n');
+            key.push_str(&parse_po_string(lines[index].trim()));
+            index += 1;
+        }
+        if index >= lines.len() || !lines[index].trim().starts_with("msgstr ") {
+            continue;
+        }
+        let mut value = parse_po_string(lines[index].trim()[7..].trim());
+        index += 1;
+        while index < lines.len() && lines[index].trim_start().starts_with('"') {
+            value.push('\n');
+            value.push_str(&parse_po_string(lines[index].trim()));
+            index += 1;
+        }
+        translations.insert(key, value);
+    }
+    translations
+}
+
+fn parse_po_string(value: &str) -> String {
+    let value = value.trim();
+    serde_json::from_str::<String>(value).unwrap_or_else(|_| value.trim_matches('"').to_string())
+}
+
 // Text packets use the same comma/quote tokenizer as the reference server.
 // This is intentionally separate from the settings/token parser above: the
 // text protocol preserves quotes and treats a doubled quote as data.
@@ -4275,6 +4628,9 @@ impl NPC {
     }
     fn matches_trigger_point(&self, x: i32, y: i32) -> bool {
         let state = self.state.lock().unwrap();
+        if state.vis_flags & NPCVISFLAG_VISIBLE == 0 {
+            return false;
+        }
         let width = if state.width <= 0 { 32 } else { state.width };
         let height = if state.height <= 0 { 32 } else { state.height };
         x >= i32::from(state.x)
@@ -4282,11 +4638,26 @@ impl NPC {
             && x <= i32::from(state.x) + width
             && y <= i32::from(state.y) + height
     }
+    fn matches_trigger_area(&self, x: i32, y: i32, width: i32, height: i32) -> bool {
+        let state = self.state.lock().unwrap();
+        if state.vis_flags & NPCVISFLAG_VISIBLE == 0 {
+            return false;
+        }
+        let npc_width = if state.width <= 0 { 32 } else { state.width };
+        let npc_height = if state.height <= 0 { 32 } else { state.height };
+        x < i32::from(state.x) + npc_width
+            && x + width > i32::from(state.x)
+            && y < i32::from(state.y) + npc_height
+            && y + height > i32::from(state.y)
+    }
     pub fn set_timeout(&self, value: i32) {
         self.state.lock().unwrap().timeout = value;
     }
     pub fn timeout(&self) -> i32 {
         self.state.lock().unwrap().timeout
+    }
+    fn run_timeout(self: &Arc<Self>, server: &Server) {
+        server.run_server_side_npc_event_for_player(self, "onTimeout", None, &[]);
     }
     fn apply_props(&self, props: &[u8]) {
         let mut state = self.state.lock().unwrap();
@@ -6215,6 +6586,7 @@ impl NPCServer {
                 .load_file(format!("weapon_bytecode/{}", weapon.bytecode_file))
                 .unwrap_or_default();
         }
+        let added = server.get_weapon(&weapon.name).is_none();
         if let Some(existing) = server.get_weapon(&weapon.name) {
             if existing.image == weapon.image
                 && existing.script == weapon.script
@@ -6233,6 +6605,8 @@ impl NPCServer {
         server
             .logger
             .info(&format!("Reloaded weapon {name} from disk"));
+        let action = if added { "added" } else { "updated" };
+        server.send_rc_chat(&format!("Weapon/GUI-script {name} {action} by Server"));
     }
 
     fn reload_class_from_disk(&self, relative: &str, file_name: &str) {
@@ -6249,6 +6623,11 @@ impl NPCServer {
             return;
         };
         let script = String::from_utf8_lossy(&data).replace("\r\n", "\n");
+        let existed = self
+            .server
+            .upgrade()
+            .and_then(|server| server.get_class(&name))
+            .is_some();
         let class = Arc::new(ScriptClass {
             name: name.clone(),
             script,
@@ -6258,6 +6637,8 @@ impl NPCServer {
         server
             .logger
             .info(&format!("Reloaded class {name} from disk"));
+        let action = if existed { "updated" } else { "added" };
+        server.send_rc_chat(&format!("Script {name} {action} by Server"));
     }
 
     pub fn new_npc_player(&self) -> Option<Arc<Player>> {
@@ -7006,11 +7387,14 @@ pub struct Server {
     player_id_gen: Mutex<u16>,
     pub allowed_versions: RwLock<Vec<String>>,
     pub levels: RwLock<HashMap<String, Arc<Level>>>,
+    pub maps: RwLock<Vec<Arc<Map>>>,
     pub npcs: RwLock<HashMap<u32, Arc<NPC>>>,
     npc_id_gen: Mutex<u32>,
     pub weapons: RwLock<HashMap<String, Arc<Weapon>>>,
     pub classes: RwLock<HashMap<String, Arc<ScriptClass>>>,
     pub flags: RwLock<HashMap<String, String>>,
+    pub ip_bans: RwLock<Vec<String>>,
+    pub translations: RwLock<HashMap<String, HashMap<String, String>>>,
     pub server_list: RwLock<Option<Arc<ServerList>>>,
     pub server_lists: RwLock<Vec<Arc<ServerList>>>,
     api_auth: Mutex<HashMap<u16, Sender<ApiAuthResult>>>,
@@ -7223,11 +7607,14 @@ impl Server {
                 player_id_gen: Mutex::new(PLAYERID_INIT),
                 allowed_versions: RwLock::new(Vec::new()),
                 levels: RwLock::new(HashMap::new()),
+                maps: RwLock::new(Vec::new()),
                 npcs: RwLock::new(HashMap::new()),
                 npc_id_gen: Mutex::new(NPCID_INIT),
                 weapons: RwLock::new(HashMap::new()),
                 classes: RwLock::new(HashMap::new()),
                 flags: RwLock::new(HashMap::new()),
+                ip_bans: RwLock::new(Vec::new()),
+                translations: RwLock::new(HashMap::new()),
                 server_list: RwLock::new(Some(list.clone())),
                 server_lists: RwLock::new(vec![list]),
                 api_auth: Mutex::new(HashMap::new()),
@@ -7494,11 +7881,25 @@ impl Server {
                 .collect::<Vec<_>>()
             {
                 level.process_board_respawns(self);
+                level.process_item_timeouts(self);
+                level.process_horse_timeouts(self);
+                level.process_baddy_timeouts(self);
             }
             for npc in self.npcs.read().unwrap().values().cloned() {
-                let timeout = npc.timeout();
-                if timeout > 0 {
-                    npc.set_timeout(timeout - 1);
+                for _ in 0..20 {
+                    let timeout = npc.timeout();
+                    if timeout <= 0 {
+                        break;
+                    }
+                    let next = timeout - 1;
+                    npc.set_timeout(next);
+                    if next == 0 {
+                        if let Some(server) = self.self_weak.upgrade() {
+                            let npc = npc.clone();
+                            thread::spawn(move || npc.run_timeout(&server));
+                        }
+                        break;
+                    }
                 }
             }
             for player in self.get_all_players() {
@@ -8076,8 +8477,8 @@ impl Server {
     }
     pub fn add_level(&self, level: Arc<Level>) {
         let name = level.get_name();
-        let mut levels = self.levels.write().unwrap();
-        levels.insert(name, level);
+        self.levels.write().unwrap().insert(name, level.clone());
+        self.associate_level_map(&level);
     }
     pub fn AddLevel(&self, level: Arc<Level>) {
         self.add_level(level)
@@ -8087,6 +8488,35 @@ impl Server {
     }
     pub fn DeleteLevel(&self, name: &str) {
         self.delete_level(name)
+    }
+    fn associate_level_map(&self, level: &Arc<Level>) {
+        let level_name = level.get_name().replace('\\', "/").to_ascii_lowercase();
+        let maps = self.maps.read().unwrap().clone();
+        let mut state = level.state.write().unwrap();
+        state.map_ref = None;
+        state.map_x = 0;
+        state.map_y = 0;
+        for map in maps {
+            if let Some((x, y)) = map.is_level_on_map(&level_name) {
+                state.map_ref = Some(map);
+                state.map_x = x;
+                state.map_y = y;
+                break;
+            }
+        }
+    }
+    fn find_level(&self, name: &str) -> (Option<Arc<Level>>, bool) {
+        let level = self.levels.read().unwrap().get(name).cloned();
+        (level.clone(), level.is_some())
+    }
+    fn delete_level_if_same(&self, name: &str, target: &Arc<Level>) {
+        let mut levels = self.levels.write().unwrap();
+        if levels
+            .get(name)
+            .is_some_and(|level| Arc::ptr_eq(level, target))
+        {
+            levels.remove(name);
+        }
     }
     pub fn get_level(&self, name: &str) -> Option<Arc<Level>> {
         let name = name.trim().replace('\\', "/");
@@ -8959,8 +9389,33 @@ impl Server {
     }
     fn load_server_message(&self) {
         if let Ok(data) = self.config.load_file("config/servermessage.html") {
-            *self.server_message.write().unwrap() = String::from_utf8_lossy(&data).into_owned();
+            *self.server_message.write().unwrap() = String::from_utf8_lossy(&data)
+                .replace('\r', "")
+                .replace('\n', " ");
         }
+    }
+    fn load_ip_bans(&self) {
+        let lines = self
+            .config
+            .load_file_as_lines("config/ipbans.txt")
+            .unwrap_or_default();
+        let bans = lines
+            .into_iter()
+            .map(|line| line.trim().to_string())
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .collect::<Vec<_>>();
+        *self.ip_bans.write().unwrap() = bans;
+    }
+    fn is_ip_banned(&self, ip: &str) -> bool {
+        let ip = ip.trim();
+        if ip.is_empty() {
+            return false;
+        }
+        self.ip_bans
+            .read()
+            .unwrap()
+            .iter()
+            .any(|pattern| glob_match(pattern, ip))
     }
     fn load_weapons(&self) {
         let files = self.config.list_files("weapons/").unwrap_or_default();
@@ -9032,15 +9487,122 @@ impl Server {
             }
         }
     }
+    fn load_maps(&self, print: bool) {
+        let Some(server) = self.self_weak.upgrade() else {
+            return;
+        };
+        let map_entries = |value: String| {
+            guntokenize(&value)
+                .replace('\r', "")
+                .split('\n')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        };
+        let mut loaded = Vec::new();
+        let mut load = |name: String, map_type: MapType, group_map: bool| {
+            let map = Arc::new(Map::new(map_type, group_map));
+            map.set_server(&server);
+            if let Err(error) = map.load(&name) {
+                if print {
+                    self.logger
+                        .warning(&format!("Could not load map {name}: {error}"));
+                }
+                return;
+            }
+            if print {
+                self.logger.info(&format!("Loaded map: {name}"));
+            }
+            loaded.push(map);
+        };
+
+        for mut name in map_entries(self.settings.get("gmaps")) {
+            if !name.to_ascii_lowercase().ends_with(".gmap") {
+                name.push_str(".gmap");
+            }
+            load(name, MapType::Gmap, false);
+        }
+        for name in map_entries(self.settings.get("maps")) {
+            load(name, MapType::BigMap, false);
+        }
+        for name in map_entries(self.settings.get("groupmaps")) {
+            match Path::new(&name)
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.to_ascii_lowercase())
+                .as_deref()
+            {
+                Some("gmap") => load(name, MapType::Gmap, true),
+                Some("txt") => load(name, MapType::BigMap, true),
+                _ => {}
+            }
+        }
+        *self.maps.write().unwrap() = loaded.clone();
+        for map in &loaded {
+            map.load_map_levels();
+        }
+        let levels = self
+            .levels
+            .read()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for level in levels {
+            self.associate_level_map(&level);
+        }
+    }
+    fn load_translations(&self) {
+        let mut translations = HashMap::new();
+        for file in self.config.list_files("translations/").unwrap_or_default() {
+            let Some(extension) = Path::new(&file)
+                .extension()
+                .and_then(|value| value.to_str())
+            else {
+                continue;
+            };
+            if !extension.eq_ignore_ascii_case("po") {
+                continue;
+            }
+            let Some(stem) = Path::new(&file)
+                .file_stem()
+                .and_then(|value| value.to_str())
+            else {
+                continue;
+            };
+            let Ok(data) = self.config.load_file(format!("translations/{file}")) else {
+                continue;
+            };
+            translations.insert(
+                stem.to_ascii_lowercase(),
+                parse_po_translations(&String::from_utf8_lossy(&data)),
+            );
+        }
+        *self.translations.write().unwrap() = translations;
+    }
+    fn translate(&self, language: &str, key: &str) -> String {
+        self.translations
+            .read()
+            .unwrap()
+            .get(&language.trim().to_ascii_lowercase())
+            .and_then(|values| values.get(key))
+            .filter(|value| !value.is_empty())
+            .cloned()
+            .unwrap_or_else(|| key.to_string())
+    }
     fn load_config_files(&self) {
         self.config_loading.store(true, Ordering::Release);
         self.load_settings();
         self.load_admin_settings();
         self.load_flags();
+        self.load_ip_bans();
         self.load_weapons();
         self.load_classes();
+        self.load_maps(false);
         self.load_npcs();
-        self.word_filter.load("config/wordfilter.txt");
+        self.load_translations();
+        self.word_filter.load("config/rules.txt");
         self.configure_server_lists();
         self.config_loading.store(false, Ordering::Release);
         self.npc_server.sync();
@@ -9469,8 +10031,8 @@ impl Server {
                     .unwrap_or_default(),
                 x: f64::from(state.x) / 16.0,
                 y: f64::from(state.y) / 16.0,
-                width: state.width,
-                height: state.height,
+                width: f64::from(state.width) / 16.0,
+                height: f64::from(state.height) / 16.0,
                 this: merge_npc_vm_state(&state),
             });
         }
@@ -9891,7 +10453,7 @@ impl Server {
         } else {
             action.level.clone()
         };
-        let Some(level) = self.get_level(&clean_level_name(&requested)) else {
+        let Some(level) = self.get_level(&requested) else {
             return;
         };
         let owner = result
@@ -9951,6 +10513,9 @@ impl Server {
                 self.send_gs2_level_packet(&level, &packet.data);
             }
             "triggeraction" => {
+                for call in &action.calls {
+                    self.apply_gs2_npc_function_call(result, call);
+                }
                 let mut action_text = action.target.clone();
                 if !action.params.is_empty() {
                     action_text.push(',');
@@ -9961,8 +10526,8 @@ impl Server {
                     .write_byte(PLO_TRIGGERACTION)
                     .write_gshort(owner)
                     .write_gint(0)
-                    .write_gchar(action.x as i32 as u8)
-                    .write_gchar(action.y as i32 as u8)
+                    .write_gchar((action.x * 2.0) as i32 as u8)
+                    .write_gchar((action.y * 2.0) as i32 as u8)
                     .write(action_text.as_bytes());
                 self.send_gs2_level_packet(&level, &packet.data);
             }
@@ -10384,7 +10949,7 @@ impl Server {
         }
         let level = player
             .current_level()
-            .or_else(|| self.get_level(&clean_level_name(&player.level_name())));
+            .or_else(|| self.get_level(&player.level_name()));
         let Some(level) = level else {
             return;
         };
@@ -10399,7 +10964,7 @@ impl Server {
             if npc_id != 0 && npc.id() != npc_id {
                 continue;
             }
-            if npc_id == 0 && !npc.matches_trigger_point(match_x, match_y) {
+            if npc_id == 0 && !npc.matches_trigger_area(match_x, match_y, 8, 8) {
                 continue;
             }
             self.run_server_side_npc_event_for_player(&npc, &event_name, Some(player), &args);
@@ -11503,7 +12068,7 @@ fn parse_database_npc(data: &str) -> Option<NPC> {
                     state.character.sprite = sprite;
                 }
                 "AP" => state.character.ap = parse_i32(value),
-                "TIMEOUT" => state.timeout = parse_i32(value),
+                "TIMEOUT" => state.timeout = parse_i32(value).saturating_mul(20),
                 "SAVEARR" => {
                     for (index, part) in value.split(',').take(10).enumerate() {
                         state.saves[index] = parse_i32(part.trim()) as u8;
@@ -11578,7 +12143,7 @@ fn save_npc_file(server: &Server, npc: &NPC, file_name: &str) -> io::Result<()> 
         ("COLORS", colors),
         ("SPRITE", state.character.sprite.to_string()),
         ("AP", state.character.ap.to_string()),
-        ("TIMEOUT", state.timeout.to_string()),
+        ("TIMEOUT", (state.timeout / 20).to_string()),
     ] {
         let _ = writeln!(out, "{key} {value}\r");
     }
@@ -14128,7 +14693,7 @@ impl Player {
         }
         let level = self
             .current_level()
-            .or_else(|| server.get_level(&clean_level_name(&self.level_name())));
+            .or_else(|| server.get_level(&self.level_name()));
         let Some(level) = level else {
             return;
         };
@@ -14140,13 +14705,19 @@ impl Player {
                 account.character.sprite,
             )
         };
-        let offsets = [24, 16, 0, 32, 24, 56, 48, 32];
+        let offsets = [(24, 16), (0, 32), (24, 56), (48, 32)];
         let direction = usize::from(sprite % 4);
-        let x = x + offsets[direction * 2];
-        let y = y + offsets[direction * 2 + 1];
+        let x = x + offsets[direction].0;
+        let y = y + offsets[direction].1;
         let player = self.self_arc();
         for npc in level.get_npcs() {
-            if !npc.has_script() || !npc.matches_trigger_point(x, y) {
+            if !npc.matches_trigger_point(x, y) {
+                continue;
+            }
+            let script = npc.state.lock().unwrap().script.clone();
+            let mut seen = HashSet::new();
+            let expanded = server.expand_joined_classes(&script, &mut seen);
+            if script.trim().is_empty() || !gs2_script_has_event(&expanded, "onPlayerTouchsMe") {
                 continue;
             }
             server.run_server_side_npc_event_for_player(
@@ -14453,7 +15024,10 @@ impl Player {
         let level = String::from_utf8_lossy(&buf.read_bytes(buf.remaining()))
             .trim()
             .to_string();
-        if level.len() < 3 || level.chars().any(|v| v == '\0' || v == '\r' || v == '\n') {
+        if level.trim().is_empty()
+            || level.len() < 3
+            || level.chars().any(|v| v == '\0' || v == '\r' || v == '\n')
+        {
             return true;
         }
         self.warp(&level, x, y, mod_time);
@@ -14476,6 +15050,14 @@ impl Player {
         let Some(server) = self.server() else {
             return true;
         };
+        if width == 4
+            && height == 4
+            && server.settings.get_bool("clientsidepushpull", true)
+            && Self::is_push_pull_block_tiles(&tiles)
+        {
+            self.send_plo_boardmodify(x as i16, y as i16, width as i16, height as i16, &tiles);
+            return true;
+        }
         let Some(level) = self.current_level() else {
             return true;
         };
@@ -14492,6 +15074,32 @@ impl Player {
             self.maybe_drop_tile_item(&level, x, y, old_tile);
         }
         true
+    }
+
+    fn is_push_pull_block_tiles(tiles: &[i16]) -> bool {
+        let mut index = 0usize;
+        while index < 16
+            && tiles
+                .get(index)
+                .is_some_and(|tile| *tile != 0x06e4 && *tile != 0x07ce)
+        {
+            index += 1;
+        }
+        if index >= 16 || index >= 11 {
+            return false;
+        }
+        [0usize, 1, 4, 5]
+            .iter()
+            .filter(|offset| {
+                tiles.get(index + **offset).is_some_and(|tile| {
+                    matches!(
+                        *tile,
+                        0x06e4 | 0x06e5 | 0x06f4 | 0x06f5 | 0x07ce | 0x07cf | 0x07de | 0x07df
+                    )
+                })
+            })
+            .count()
+            == 4
     }
 
     fn msg_pli_requestupdateboard(&self, packet: &[u8]) -> bool {
@@ -14969,23 +15577,70 @@ impl Player {
             }
             _ => return,
         };
-        level.add_item_at(x as f32, y as f32, item);
-        server.broadcast_item_add(level, (x * 2) as i16, (y * 2) as i16, item);
+        if level.add_item_for_server(&server, x as f32, y as f32, item) {
+            server.broadcast_item_add(level, (x * 2) as i16, (y * 2) as i16, item);
+        }
+    }
+
+    fn remove_item_for_drop(&self, item_type: LevelItemType) -> bool {
+        let mut account = self.account.lock().unwrap();
+        match item_type {
+            ITEM_GREEN_RUPEE | ITEM_BLUE_RUPEE | ITEM_RED_RUPEE | ITEM_GOLD_RUPEE => {
+                let value = rupee_item_value(item_type);
+                if account.character.gralats < value {
+                    return false;
+                }
+                account.character.gralats -= value;
+                account.rupees = account.character.gralats.max(0) as u32;
+                true
+            }
+            ITEM_BOMBS => {
+                if account.character.bombs < 5 {
+                    return false;
+                }
+                account.character.bombs -= 5;
+                true
+            }
+            ITEM_DARTS => {
+                if account.character.arrows < 5 {
+                    return false;
+                }
+                account.character.arrows -= 5;
+                true
+            }
+            ITEM_HEART => {
+                if account.character.hitpoints <= 1 {
+                    return false;
+                }
+                account.character.hitpoints -= 1;
+                true
+            }
+            _ => false,
+        }
     }
 
     fn msg_pli_itemadd(&self, packet: &[u8]) -> bool {
+        let mut normal_item = true;
         if packet.len() >= 4 {
             let mut buf = Buffer::from_bytes(&packet[1..]);
-            let x = f32::from(buf.read_gchar());
-            let y = f32::from(buf.read_gchar());
+            let x = f32::from(buf.read_gchar()) / 2.0;
+            let y = f32::from(buf.read_gchar()) / 2.0;
             let item = i32::from(buf.read_gchar());
-            if let Some(level) = self.current_level() {
-                level.add_item_at(x, y, item);
+            if !self.remove_item_for_drop(item) {
+                return true;
+            }
+            if let (Some(level), Some(server)) = (self.current_level(), self.server()) {
+                normal_item = level.add_item_for_server(&server, x, y, item);
             }
         }
         let mut out = Buffer::new();
-        out.write_byte(PLO_ITEMADD).write(&packet[1..]);
-        self.send_to_current_level_except_self(&out.data);
+        if normal_item {
+            out.write_byte(PLO_ITEMADD).write(&packet[1..]);
+            self.send_to_current_level_except_self(&out.data);
+        } else {
+            out.write_byte(PLO_ITEMDEL).write(&packet[1..]);
+            self.send(&out);
+        }
         true
     }
 
@@ -14993,13 +15648,10 @@ impl Player {
         let mut item = -1;
         if packet.len() >= 3 {
             let mut buf = Buffer::from_bytes(&packet[1..]);
-            let x = f32::from(buf.read_gchar());
-            let y = f32::from(buf.read_gchar());
+            let x = f32::from(buf.read_gchar()) / 2.0;
+            let y = f32::from(buf.read_gchar()) / 2.0;
             if let Some(level) = self.current_level() {
                 item = level.remove_item_at(x, y);
-                if item < 0 {
-                    item = level.remove_item_at(x / 2.0, y / 2.0);
-                }
             }
         }
         let mut out = Buffer::new();
@@ -15046,12 +15698,21 @@ impl Player {
         let dir_bush = buf.read_byte();
         let image = String::from_utf8_lossy(&buf.read_bytes(buf.remaining())).into_owned();
         if let Some(level) = self.current_level() {
+            let lifetime = self
+                .server()
+                .map(|server| server.settings.get_int("horselifetime", 30))
+                .unwrap_or(30);
             level.state.write().unwrap().horses.push(LevelHorse {
                 x,
                 y,
                 dir: dir_bush & 3,
                 bushes: dir_bush >> 2,
                 image,
+                expires_at: if lifetime <= 0 {
+                    UNIX_EPOCH
+                } else {
+                    SystemTime::now() + Duration::from_secs(lifetime as u64)
+                },
             });
         }
         let mut out = Buffer::new();
@@ -16717,7 +17378,73 @@ impl Player {
                     self.account.lock().unwrap().character.sprite = buf.read_gchar();
                 }
                 PLPROP_STATUS => {
-                    self.account.lock().unwrap().status = i32::from(buf.read_gchar());
+                    let old_status = self.account.lock().unwrap().status;
+                    let value = i32::from(buf.read_gchar());
+                    self.account.lock().unwrap().status = value;
+                    let was_dead = old_status & PLSTATUS_DEAD != 0;
+                    let is_dead = value & PLSTATUS_DEAD != 0;
+                    let level = self.current_level();
+                    if !was_dead && is_dead {
+                        if let Some(level) = &level {
+                            if !level.state.read().unwrap().is_sparring_zone {
+                                let mut account = self.account.lock().unwrap();
+                                account.deaths = account.deaths.saturating_add(1);
+                                drop(account);
+                                self.drop_items_on_death(level);
+                            }
+                        }
+                        if let Some(level) = &level {
+                            let players = level.get_players();
+                            if !level.state.read().unwrap().is_sparring_zone
+                                && players.len() > 1
+                                && players[0] == self.id()
+                            {
+                                level.remove_player(self);
+                                level.add_player(self);
+                                if let Some(leader_id) = level.get_players().first().copied() {
+                                    if let Some(server) = self.server() {
+                                        if let Some(leader) = server.get_player(leader_id) {
+                                            leader.send_plo_isleader();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if was_dead && !is_dead {
+                        let (ap, max_hitpoints) = {
+                            let account = self.account.lock().unwrap();
+                            (account.character.ap, account.max_hitpoints)
+                        };
+                        let mut power = if ap >= 40 {
+                            i32::from(max_hitpoints)
+                        } else if ap >= 20 {
+                            5
+                        } else {
+                            3
+                        };
+                        if power > i32::from(max_hitpoints) {
+                            power = i32::from(max_hitpoints);
+                        }
+                        if power < 1 && max_hitpoints > 0 {
+                            power = 1;
+                        }
+                        self.account.lock().unwrap().character.hitpoints = power;
+                        let mut props = Buffer::new();
+                        props
+                            .write_gchar(PLPROP_CURPOWER)
+                            .write_gchar((power * 2).clamp(0, 255) as u8);
+                        let mut packet = Buffer::new();
+                        packet.write_byte(PLO_PLAYERPROPS).write(&props.data);
+                        self.send(&packet);
+                        self.send_player_prop_deltas_to_current_level(
+                            &props.data,
+                            &[],
+                            &[],
+                            &[],
+                            false,
+                            false,
+                        );
+                    }
                 }
                 PLPROP_CARRYSPRITE => {
                     self.account.lock().unwrap().carry_sprite = buf.read_byte();
@@ -17481,6 +18208,14 @@ impl Player {
     pub fn account_name(&self) -> String {
         self.account.lock().unwrap().account_name.clone()
     }
+    pub fn translate(&self, key: &str) -> String {
+        self.server()
+            .map(|server| {
+                let language = self.account.lock().unwrap().language.clone();
+                server.translate(&language, key)
+            })
+            .unwrap_or_else(|| key.to_string())
+    }
     pub fn get_account_name(&self) -> String {
         self.account_name()
     }
@@ -18028,6 +18763,22 @@ impl Player {
         self.normalize_nickname();
         self.apply_server_options_staff_rights();
         self.set_account_ip_from_remote();
+        let remote_ip = self
+            .state
+            .lock()
+            .unwrap()
+            .conn
+            .as_ref()
+            .and_then(|conn| conn.peer_addr().ok())
+            .map(|address| address.ip().to_string())
+            .unwrap_or_default();
+        if let Some(server) = self.server() {
+            if server.is_ip_banned(&remote_ip) && !self.has_right(PLPERM_MODIFYSTAFFACCOUNT) {
+                self.send_plo_discmessage("You have been banned from this server.");
+                self.send_compress(true);
+                return false;
+            }
+        }
         if client_type & PLTYPE_ANYCONTROL != 0 && !self.can_login_control() {
             self.send_plo_discmessage(
                 "You do not have RC/NC rights or your IP range does not match.",
@@ -18128,10 +18879,6 @@ impl Player {
         for weapon in weapons {
             self.send_account_weapon(&weapon);
         }
-        let version_id = self.version_id();
-        if (221..=231).contains(&version_id) {
-            self.send_plo_zlibfixweapon();
-        }
         self.send_plo_unknown190();
         let (level, x, y) = self.login_warp_target();
         self.warp(&level, x, y, 0);
@@ -18182,8 +18929,13 @@ impl Player {
                 state.encryption.limit_from_type(compression);
                 state.encryption.decrypt(&mut value);
                 match compression {
-                    COMPRESS_ZLIB => match zlib_decompress(&value) {
-                        Ok(value) => value,
+                    COMPRESS_ZLIB => match zlib_decompress_with_fallback(&value) {
+                        Ok((value, used_deflate)) => {
+                            if used_deflate {
+                                state.encryption.rollback_iterator();
+                            }
+                            value
+                        }
                         Err(_) => return,
                     },
                     COMPRESS_BZ2 => match crate::network::bz2_decompress(&value) {
@@ -20351,8 +21103,12 @@ impl Player {
             .write_gchar(if open { 1 } else { 0 });
         buf.write_gchar(chest.x as u8).write_gchar(chest.y as u8);
         if !open {
-            buf.write_gchar(chest.item_type as u8)
-                .write_gchar(chest.sign_index as u8);
+            buf.write_gchar(chest.item_type as u8);
+            if chest.sign_index < 0 {
+                buf.write_byte(0x1f);
+            } else {
+                buf.write_gchar(chest.sign_index as u8);
+            }
         }
         self.send(&buf);
         true
@@ -20656,7 +21412,37 @@ impl Player {
             }
         }
         self.send(&buf);
+        if self.version_id() >= 300 {
+            self.send_npc_bytecode(npc);
+        }
         true
+    }
+    fn send_npc_bytecode(&self, npc: &NPC) {
+        let snapshot = npc.snapshot();
+        let Some(source) = npc_runtime::clientside_gs2(&snapshot.script) else {
+            return;
+        };
+        if source.trim().is_empty() {
+            return;
+        }
+        let compiled = npc_runtime::compile_gs2_script(&source);
+        if !compiled.err_text.is_empty() || compiled.bytecode.is_empty() {
+            if !compiled.err_text.is_empty() {
+                if let Some(server) = self.server() {
+                    server.logger.warning(&format!(
+                        "Failed to compile NPC {} clientside: {}",
+                        snapshot.id, compiled.err_text
+                    ));
+                }
+            }
+            return;
+        }
+        let mut payload = Buffer::new();
+        payload
+            .write_gchar(PLO_NPCBYTECODE)
+            .write_gint(snapshot.id)
+            .write(&compiled.bytecode);
+        self.send_raw_data_payload(&payload.data);
     }
     pub fn sendPLO_NPCPROPS(&self, npc: &NPC) -> bool {
         self.send_plo_npcprops(npc)
@@ -21155,15 +21941,17 @@ impl Player {
         let Some(server) = self.server() else { return };
         let was_loaded = self.state.lock().unwrap().loaded;
         let clean = clean_level_name(level_name);
-        let Some(level) = server.load_level(&clean) else {
+        let (existing, level_exists) = server.find_level(&clean);
+        let Some(level) = existing.or_else(|| server.load_level(&clean)) else {
             server
                 .logger
                 .error(&format!("warp: Failed to load level: {clean}"));
+            self.send_plo_warpfailed(level_name);
             return;
         };
 
         let file_version_empty = level.state.read().unwrap().file_version.is_empty();
-        if file_version_empty {
+        if !level_exists && file_version_empty {
             let paths = [
                 format!("world/{clean}.nw"),
                 format!("world/levels/{clean}.nw"),
@@ -21183,9 +21971,12 @@ impl Player {
                 }
             }
             if !loaded {
+                server.delete_level_if_same(&clean, &level);
                 server.logger.warning(&format!(
-                    "warp: Could not load level file for {clean}, using empty level"
+                    "warp: Could not load level file for {clean}, rejecting warp"
                 ));
+                self.send_plo_warpfailed(level_name);
+                return;
             }
         }
 
@@ -21322,14 +22113,151 @@ impl Player {
     }
 
     pub fn process_timeout(&self) {
-        let state = self.state.lock().unwrap();
-        if state.player_type & (PLTYPE_NPCSERVER | PLTYPE_ANYCONTROL) != 0 {
+        let (player_type, last_data, last_movement, last_chat) = {
+            let state = self.state.lock().unwrap();
+            (
+                state.player_type,
+                state.last_data,
+                state.last_movement,
+                state.last_chat,
+            )
+        };
+        if player_type & (PLTYPE_NPCSERVER | PLTYPE_ANYCONTROL) != 0
+            || player_type & PLTYPE_ANYCLIENT == 0
+        {
             return;
         }
-        let stale = state.last_data.elapsed() > Duration::from_secs(300);
-        drop(state);
-        if stale {
+        if let Some(server) = self.server() {
+            let max_no_movement = server.settings.get_int("maxnomovement", 1200);
+            if server.settings.get_bool("disconnectifnotmoved", false)
+                && last_movement.elapsed().as_secs() as i32 > max_no_movement
+                && last_chat.elapsed().as_secs() as i32 > max_no_movement
+            {
+                server.logger.info(&format!(
+                    "Client {} has been disconnected due to inactivity.",
+                    self.account_name()
+                ));
+                self.disconnect_with_message("You have been disconnected due to inactivity.");
+                return;
+            }
+        }
+        if last_data.elapsed() > Duration::from_secs(300) {
             self.disconnect();
+        }
+    }
+
+    fn disconnect_with_message(&self, message: &str) {
+        let mut packet = Vec::with_capacity(message.len() + 2);
+        packet.push(PLO_DISCMESSAGE);
+        packet.extend_from_slice(message.as_bytes());
+        packet.push(b'\n');
+        self.send_immediate_packet(&packet);
+        self.disconnect();
+    }
+
+    fn drop_items_on_death(&self, level: &Arc<Level>) {
+        let Some(server) = self.server() else {
+            return;
+        };
+        if !server.settings.get_bool("dropitemsdead", true) {
+            return;
+        }
+        let min_gralats = server.settings.get_int("mindeathgralats", 1);
+        let max_gralats = server.settings.get_int("maxdeathgralats", 50);
+        let (mut drop_gralats, mut drop_arrows, mut drop_bombs) = {
+            let account = self.account.lock().unwrap();
+            let mut gralats = if max_gralats > 0 {
+                (rand::random::<u32>() % max_gralats as u32) as i32
+            } else {
+                0
+            };
+            if gralats < min_gralats {
+                gralats = min_gralats;
+            }
+            if max_gralats > 0 {
+                gralats = gralats.min(max_gralats).min(account.character.gralats);
+            } else {
+                gralats = 0;
+            }
+            let mut arrows = i32::from(rand::random::<u8>() % 4);
+            let mut bombs = i32::from(rand::random::<u8>() % 4);
+            arrows = arrows.min(account.character.arrows / 5);
+            bombs = bombs.min(account.character.bombs / 5);
+            (gralats, arrows, bombs)
+        };
+        {
+            let mut account = self.account.lock().unwrap();
+            account.character.gralats -= drop_gralats;
+            account.character.arrows -= drop_arrows * 5;
+            account.character.bombs -= drop_bombs * 5;
+            account.rupees = account.character.gralats.max(0) as u32;
+        }
+        let (rupees, arrows, bombs) = {
+            let account = self.account.lock().unwrap();
+            (
+                account.rupees,
+                account.character.arrows,
+                account.character.bombs,
+            )
+        };
+        let mut props = Buffer::new();
+        props
+            .write_byte(PLO_PLAYERPROPS)
+            .write_gchar(PLPROP_RUPEESCOUNT)
+            .write_gint(rupees)
+            .write_gchar(PLPROP_ARROWSCOUNT)
+            .write_gchar(arrows.clamp(0, 255) as u8)
+            .write_gchar(PLPROP_BOMBSCOUNT)
+            .write_gchar(bombs.clamp(0, 255) as u8);
+        self.send(&props);
+
+        let (player_x, player_y) = self.position();
+        let drop_position = || {
+            (
+                f32::from(player_x) / 16.0 + 1.5 + f32::from(rand::random::<u8>() % 8) - 2.0,
+                f32::from(player_y) / 16.0 + 2.0 + f32::from(rand::random::<u8>() % 8) - 2.0,
+            )
+        };
+        while drop_gralats > 0 {
+            let (item_type, value) = if drop_gralats >= 100 {
+                (ITEM_GOLD_RUPEE, 100)
+            } else if drop_gralats >= 30 {
+                (ITEM_RED_RUPEE, 30)
+            } else if drop_gralats >= 5 {
+                (ITEM_BLUE_RUPEE, 5)
+            } else {
+                (ITEM_GREEN_RUPEE, 1)
+            };
+            drop_gralats -= value;
+            let (x, y) = drop_position();
+            if level.add_item_for_server(&server, x, y, item_type) {
+                let mut packet = Buffer::new();
+                packet
+                    .write_byte(PLO_ITEMADD)
+                    .write_gchar((x * 2.0) as u8)
+                    .write_gchar((y * 2.0) as u8)
+                    .write_gchar(item_type as u8);
+                self.send_to_current_level_except_self(&packet.data);
+            }
+        }
+        for item_type in [ITEM_DARTS, ITEM_BOMBS] {
+            let count = if item_type == ITEM_DARTS {
+                drop_arrows
+            } else {
+                drop_bombs
+            };
+            for _ in 0..count {
+                let (x, y) = drop_position();
+                if level.add_item_for_server(&server, x, y, item_type) {
+                    let mut packet = Buffer::new();
+                    packet
+                        .write_byte(PLO_ITEMADD)
+                        .write_gchar((x * 2.0) as u8)
+                        .write_gchar((y * 2.0) as u8)
+                        .write_gchar(item_type as u8);
+                    self.send_to_current_level_except_self(&packet.data);
+                }
+            }
         }
     }
 

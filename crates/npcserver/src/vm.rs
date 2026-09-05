@@ -630,8 +630,8 @@ pub struct NPCContext {
     pub level: String,
     pub x: f64,
     pub y: f64,
-    pub width: i32,
-    pub height: i32,
+    pub width: f64,
+    pub height: f64,
     pub this: AnyMap,
 }
 
@@ -7008,16 +7008,8 @@ impl EvalState {
                             } else {
                                 &npc.level
                             };
-                            let npc_width = if npc.width <= 0 {
-                                1.0
-                            } else {
-                                npc.width as f64
-                            };
-                            let npc_height = if npc.height <= 0 {
-                                1.0
-                            } else {
-                                npc.height as f64
-                            };
+                            let npc_width = if npc.width <= 0.0 { 1.0 } else { npc.width };
+                            let npc_height = if npc.height <= 0.0 { 1.0 } else { npc.height };
                             npc_level.eq_ignore_ascii_case(&level)
                                 && npc.x < x + width
                                 && npc.x + npc_width > x
@@ -7070,16 +7062,8 @@ impl EvalState {
                         } else {
                             &npc.level
                         };
-                        let width = if npc.width <= 0 {
-                            1.0
-                        } else {
-                            npc.width as f64
-                        };
-                        let height = if npc.height <= 0 {
-                            1.0
-                        } else {
-                            npc.height as f64
-                        };
+                        let width = if npc.width <= 0.0 { 1.0 } else { npc.width };
+                        let height = if npc.height <= 0.0 { 1.0 } else { npc.height };
                         npc_level.eq_ignore_ascii_case(&level)
                             && x >= npc.x
                             && x < npc.x + width
@@ -7347,16 +7331,8 @@ impl EvalState {
             } else {
                 &npc.level
             };
-            let width = if npc.width <= 0 {
-                1.0
-            } else {
-                npc.width as f64
-            };
-            let height = if npc.height <= 0 {
-                1.0
-            } else {
-                npc.height as f64
-            };
+            let width = if npc.width <= 0.0 { 1.0 } else { npc.width };
+            let height = if npc.height <= 0.0 { 1.0 } else { npc.height };
             if npc_level.eq_ignore_ascii_case(level)
                 && x >= npc.x
                 && x < npc.x + width
@@ -11579,8 +11555,8 @@ fn make_npc_object(context: &NPCContext) -> DynValue {
     set_property(&object, "level", DynValue::String(context.level.clone()));
     set_property(&object, "x", DynValue::Number(context.x));
     set_property(&object, "y", DynValue::Number(context.y));
-    set_property(&object, "width", DynValue::Number(context.width as f64));
-    set_property(&object, "height", DynValue::Number(context.height as f64));
+    set_property(&object, "width", DynValue::Number(context.width));
+    set_property(&object, "height", DynValue::Number(context.height));
     hydrate_object_state(&object, &context.this);
     object
 }

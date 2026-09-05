@@ -9,7 +9,7 @@ use base64::{engine::general_purpose, Engine as _};
 use bzip2::read::BzDecoder;
 use bzip2::write::BzEncoder;
 use bzip2::Compression as BzCompression;
-use flate2::read::ZlibDecoder;
+use flate2::read::{DeflateDecoder, ZlibDecoder};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
@@ -471,6 +471,7 @@ impl Buffer {
 pub struct Encryption {
     pub key: u8,
     pub iterator: u32,
+    pub last_iterator: u32,
     pub limit: i32,
     pub gen: u32,
 }
@@ -489,6 +490,7 @@ impl Encryption {
             limit: -1,
             gen: ENCRYPT_GEN_3,
             iterator: Self::ITERATOR_START[ENCRYPT_GEN_3 as usize],
+            last_iterator: Self::ITERATOR_START[ENCRYPT_GEN_3 as usize],
         }
     }
     pub fn NewEncryption() -> Self {
@@ -497,6 +499,7 @@ impl Encryption {
     pub fn reset(&mut self, key: u8) {
         self.key = key;
         self.iterator = Self::ITERATOR_START[self.gen as usize];
+        self.last_iterator = self.iterator;
         self.limit = -1;
     }
     pub fn Reset(&mut self, key: u8) {
@@ -511,6 +514,7 @@ impl Encryption {
             self.gen = gen;
         }
         self.iterator = Self::ITERATOR_START[self.gen as usize];
+        self.last_iterator = self.iterator;
     }
     pub fn SetGen(&mut self, gen: u32) {
         self.set_gen(gen)
@@ -550,6 +554,7 @@ impl Encryption {
         match self.gen {
             ENCRYPT_GEN_1 | ENCRYPT_GEN_2 | ENCRYPT_GEN_6 => {}
             ENCRYPT_GEN_3 => {
+                self.last_iterator = self.iterator;
                 self.iterator = self
                     .iterator
                     .wrapping_mul(0x0808_8405)
@@ -563,6 +568,7 @@ impl Encryption {
                         if self.limit == 0 {
                             return;
                         }
+                        self.last_iterator = self.iterator;
                         self.iterator = self
                             .iterator
                             .wrapping_mul(0x0808_8405)
@@ -588,6 +594,7 @@ impl Encryption {
         match self.gen {
             ENCRYPT_GEN_1 | ENCRYPT_GEN_2 | ENCRYPT_GEN_6 => result,
             ENCRYPT_GEN_3 => {
+                self.last_iterator = self.iterator;
                 self.iterator = self
                     .iterator
                     .wrapping_mul(0x0808_8405)
@@ -602,6 +609,7 @@ impl Encryption {
                         if self.limit == 0 {
                             return result;
                         }
+                        self.last_iterator = self.iterator;
                         self.iterator = self
                             .iterator
                             .wrapping_mul(0x0808_8405)
@@ -619,6 +627,12 @@ impl Encryption {
     }
     pub fn Encrypt(&mut self, data: &[u8]) -> Vec<u8> {
         self.encrypt(data)
+    }
+    pub fn rollback_iterator(&mut self) {
+        self.iterator = self.last_iterator;
+    }
+    pub fn RollbackIterator(&mut self) {
+        self.rollback_iterator()
     }
 }
 
@@ -754,6 +768,26 @@ pub fn zlib_decompress(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut out = Vec::new();
     decoder.read_to_end(&mut out)?;
     Ok(out)
+}
+
+pub fn zlib_decompress_with_fallback(data: &[u8]) -> io::Result<(Vec<u8>, bool)> {
+    let zlib_error = match zlib_decompress(data) {
+        Ok(decoded) => return Ok((decoded, false)),
+        Err(error) => error,
+    };
+
+    if data.len() > 6 {
+        let mut decoder = DeflateDecoder::new(&data[2..]);
+        let mut decoded = Vec::new();
+        if decoder.read_to_end(&mut decoded).is_ok() {
+            return Ok((decoded, true));
+        }
+    }
+
+    Err(zlib_error)
+}
+pub fn ZlibDecompressWithFallback(data: &[u8]) -> io::Result<(Vec<u8>, bool)> {
+    zlib_decompress_with_fallback(data)
 }
 pub fn ZlibDecompress(data: &[u8]) -> io::Result<Vec<u8>> {
     zlib_decompress(data)
