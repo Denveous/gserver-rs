@@ -15020,7 +15020,10 @@ impl Player {
             return true;
         }
         let mut buf = Buffer::from_bytes(&packet[1..]);
-        let raw_id = Buffer::from_bytes(&packet[..1]).read_gchar();
+        // The dispatcher has already normalized packet[0] to the raw opcode;
+        // do not GChar-decode it here. Decoding made normal LEVELWARP packets
+        // look like LEVELWARPMOD and consumed five bytes of the level name.
+        let raw_id = packet[0];
         let mod_time = if raw_id == PLI_LEVELWARPMOD {
             if buf.remaining() < 5 {
                 return true;
