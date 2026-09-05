@@ -1,0 +1,15 @@
+GRAWP001
+REALNAME AidsTest
+IMAGE bcalarmclock.png
+SCRIPT
+function onCreated() {
+  temp.nulltest = null;
+  temp.emptyObj = {};
+  temp.emptyString = "";
+
+  echo(temp.nulltest == temp.emptyObj);
+  echo(temp.nulltest == temp.emptyString);
+  echo(temp.emptyObj == temp.emptyString);
+  echo(temp.emptyObj == temp.emptyObj);
+}
+SCRIPTEND

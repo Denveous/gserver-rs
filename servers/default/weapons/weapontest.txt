@@ -1,0 +1,12 @@
+GRAWP001
+REALNAME test
+IMAGE bcalarmclock.png
+BYTECODE weapontest.gs2bc
+SCRIPT
+findplayer("guest").addweapon(this);
+//#CLIENTSIDE
+
+function onCreated() {
+  player.chat = "gs2 bytecode ran";
+}
+SCRIPTEND

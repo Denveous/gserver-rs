@@ -1,0 +1,10 @@
+GRAWP001
+REALNAME ClassTest
+IMAGE 
+SCRIPT
+join("testclass");
+//join("tsocklib");
+onKek();
+echo(joinedclasses); 
+echo("deez");
+SCRIPTEND

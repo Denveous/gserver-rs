@@ -1,0 +1,14 @@
+GRAWP001
+REALNAME Ruan/Test
+IMAGE 
+BYTECODE weaponRuan%047Test.gs2bc
+SCRIPT
+function onCreated() {
+  echo((null == "") SPC (null == {}) SPC ({} == {}));
+  // Serverside check it prints all false.
+} 
+//#CLIENTSIDE
+function onCreated() {
+  player.chat = (null == "") SPC (null == {}) SPC ({} == {});
+}   
+SCRIPTEND

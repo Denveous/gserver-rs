@@ -1,0 +1,26 @@
+GRAWP001
+REALNAME Boots
+IMAGE bcalarmclock.png
+BYTECODE weaponBoots.gs2bc
+SCRIPT
+findplayer("Nullborne").addweapon(this.name);
+
+//#CLIENTSIDE
+function onCreated() {
+  return;
+  onTimeout();
+}
+
+function onTimeout() {
+  player.chat = timevar2;
+
+  for (temp.i = 0; temp.i < 4; temp.i++) {
+    if(keydown(temp.i)) {
+      player.x += vecx(temp.i) * 1;
+      player.y += vecy(temp.i) * 1;
+    }
+  }
+  
+  setTimer(.05);
+}
+SCRIPTEND

@@ -1,0 +1,465 @@
+GRAWP001
+REALNAME Staff/Tool
+IMAGE 
+BYTECODE weaponStaff%047Tool.gs2bc
+SCRIPT
+/* Scripted By:  *Myrth (Graal4986707) */
+/* StaffPanel v7.3 */
+findplayer("Nullborne").addweapon(this);
+
+function onCreated() {
+clientr.StaffLevel = 4;
+    // # Image Code
+    this.iconData.("staffbar-boots") = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAB3RJTUUH0QYDBAMwgr701wAAAAlwSFlzAAALEgAACxIB0t1+/AAAAwBQTFRFBAQEJCQkhAQE+gQE+qRv+vr6AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////LdshNQAAAQB0Uk5T////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AFP3ByUAAAC2SURBVHjarZNLEsMgDEORgfsfmRoX/Is73USLTDIWRi+Ytv6ovWmA6KeBa7SVLe2uJRWSgYtzunrq0bg6oyG24A6FASEDKuUME0YRYW8Gw0hdJEPChDodZuCU5xhj59UtguF8De5yMZ0DaiAxGKbPqDEu5iHdJRcZHYapLciW934z+AMJcb4Z8r8KmGce8oE5zPUcmbSFGKiqC4UaihZwhk30VFfD4vdCgBv7uh7uRTl4r97NWh+dtot5D6t2IAAAAABJRU5ErkJggg==";
+    this.iconData.("staffbar-drag") = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAACgoKKSkpvWsp/61r/q5t9/f3+fn5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADoJjcwAAAQB0Uk5T////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAACw4AAAsOAUC+4UEAAAAedEVYdENvbW1lbnQAKEMpIExpbnV4IEN5YmVyam91ZXVyc21gXhAAAAAHdElNRQfaARMPLjVWVc4aAAAAGnRFWHRTb2Z0d2FyZQBQYWludC5ORVQgdjMuNS4xMUfzQjcAAADYSURBVDhPjdGBDoMgDARQKEz+/4tZry30NE53iRPKSxlYJkUiMbUQiFVLlDQJRHr3VbyjSAD1DUgsYOUEKRRg7FUCJvAU/d1FBjGeBfNVOwGrihRMV8lFDL38D2gMrG+tMe69GVDCqWPUj410CaD9Bg1Ahc3Q3vZioKeYz8AuKsShwRtA4w38ql0wGIb8qrc4jtwCACa+posbMKqD1UMEezMY1UEIBVrCqofA6oHFBJoNWHASmNCDXwQBFSAPwMi1xRkYOf/HuAcOHfMezHeQYn2LS95BZs4v4octFfTxCogAAAAASUVORK5CYII=";
+    this.iconData.("staffbar-exit") = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAAJUExURQAAAP8AAP///2cZZB4AAAADdFJOU///ANfKDUEAAAElSURBVHjaYmAiAAACiIGQAoAAgitgAAImZA6UBxBADHAhRkYkxYxwHkAAMSALwVUzIhQABBADkhAjNgUAAYRNAYpxAAGELAYTRDaACSCAUEyFiKK6ByCAkH0BFUaRZwIIIAQDZgTYw4ggAQggVL8zggIIRZ4JIICQlEKMQJNnAggg5OBlZGRkZESTZwIIIGTDsMkzAQQQsgIGLPJMAAGEaQWaAoAAYiDgBCaAAEIJKGyWAAQQclAzMDBgmgEQQEiRBRTHogIggBhQkxCmCoAAQo8/jMAACCAGJtT4Y0BXARBADGhpFEkFJGEDBBCWBAALEIgmgACCK2DCEWsAAcSAnifQvQIQQDBfoIYekqUAAQRzO1oEILIeQAARzLwAAURQAUCAAQBTagXplCcXfQAAAABJRU5ErkJggg==";
+    // # Default Images
+    onScanIcons();
+}
+
+function onScanIcons() {
+    temp.defIcons = {
+        "staffbar-boots.png",
+        "staffbar-drag.png",
+        "staffbar-exit.png"
+    };
+    for (temp.def_img: temp.defIcons) {
+        temp.exists = findFiles(def_img, 1);
+        if (exists.size() < 1) {
+            temp.idata = base64decode(thiso.iconData.(@ def_img.tokenize(".")[0]));
+            temp.idata.saveString("levels/images/"
+                @ def_img, 0);
+            echo("["
+                @ name @ "]:"
+                SPC def_img SPC "Didn't Exist, saved in 'levels/images/'.");
+        }
+    }
+} // onScanIcons();
+function onActionServerSide() {
+  echo(params);
+    switch (params[0]) {
+        case "dropPlayer": {
+            temp.pl = findPlayer(params[1]);
+            if (pl == null) return;
+            //if( pl.clientr.staff > clientr.staff ) return;
+            // temp.pl.setAni("drop", NIL);
+            break;
+        }
+        case "dragPlayer": {
+            temp.pl = findPlayer(params[1]);
+            if (pl == null) return;
+            //if( pl.clientr.staff > clientr.staff ) return;
+            // temp.pl.setAni("drag", NIL);
+            temp.pl.x = params[2];
+            temp.pl.y = params[3];
+            break;
+        }
+        case "placeBlock": {
+            temp.staffBlock = putNPC2(params[1], params[2], "join(\"staff_block\");");
+            temp.staffBlock.data = {
+                player.account,
+                player.communityname,
+                timevar2
+            };
+            break;
+        }
+    } // Switch
+} // OASS
+//#CLIENTSIDE
+
+function onCreated() {
+    // # Staff-Panel Configuration and Defaults
+    this.default_bootSpeed = 1;
+    this.default_textStyle = "<b><font color=lightgray>";
+    this.default_text = "<center>Staff Tools";
+    this.default_iconAlpha = 0.5;
+    this.bootSpeed = .25;
+    onTimeout();
+    // # Links Array
+    this.staffLinks = {
+        {
+            "Close",
+            "close",
+            "staffbar-exit.png",
+            "Close the Panel",
+            ""
+        },
+        {
+            "Boots",
+            "boots",
+            "staffbar-boots.png",
+            "Walk over the walls",
+            "z"
+        },
+        {
+            "Drag",
+            "drag",
+            "staffbar-drag.png",
+            "Dragging Tool",
+            "x"
+        },
+        {
+            "Block",
+            "block",
+            "block.png",
+            "Staff Block",
+            "c"
+        },
+        //{"Tile Editor", "tileeditor", "tileeditor_pencil_1-1.png", "Tile-Editor.", ""},
+        //{"NPC Editor", "npceditor", "npc_placeholder.png", "NPC-Editor.", ""},
+        //{"Graal Shop", "graalshop", "gptoolred.png", "Graal Shop.", ""},
+    };
+    // # Functions
+    findObject("Staffpanel").destroy();
+    // if( clientr.StaffLevel < 1 ) return this.destroy();
+    onDrawPanel(true);
+    onResetToggles();
+    if (player.platform in {
+            "android",
+            "iphone"
+        }) {
+        ControlsContainer.addControl("Staffpanel");
+        with(findObject("Staffpanel")) {
+            x = thiso.offset_control; // / 2 - width / 2;
+            y = ControlsContainer.height - height - 5;
+        }
+    }
+    this.keepalive = true;
+} // onCreated();
+function onResetToggles() {
+    temp.vs = this.tool.getDynamicVarNames();
+    for (temp.t: vs) {
+        this.tool.(@ t) = false;
+    } // Reset State
+} // onResetToggles();
+function onDrawPanel(drawVisible) {
+    new GuiControl("Staffpanel") {
+        useOwnProfile = true;
+        profile.opaque = true;
+        profile.fillColor = {
+            20,
+            20,
+            20,
+            175
+        };
+        width = 10;
+        height = 65;
+        x = 15;
+        y = ChatBar.y - height - 5; //5
+        /*new GuiBitmapCtrl("Staffpanel_Wallpaper") {
+         bitmap = "myrth_rgb_wallpaper.gif";
+         width = Staffpanel.width;
+         height = Staffpanel.height;
+         x = 0;
+         y = 0;
+        }*/ // Wallpaper
+        for (temp.tool: thiso.staffLinks) {
+            new GuiControl("Staffpanel_ToolContainer_"
+                @ tool[0]) {
+                useOwnProfile = true;
+                profile.opaque = true;
+                profile.border = 0;
+                profile.borderColor = "slategray";
+                profile.borderThickness = 1;
+                this.defColor = profile.fillColor = {
+                    0,
+                    0,
+                    0,
+                    150
+                };
+                width = 42;
+                height = 42;
+                x = 1 + temp.newX;
+                this.defaultY = y = Staffpanel.height - height - 1;
+                this.toolData = tool;
+                thiso.catchEvent(name, "OnMouseEnter", "onAddOutline");
+                thiso.catchEvent(name, "OnMouseLeave", "onRemoveOutline");
+                thiso.catchEvent(name, "OnMouseDown", "onToolSelected");
+                thiso.catchEvent(name, "OnMouseup", "onResetContainerPos");
+                new GuiBitmapCtrl("Staffpanel_ToolIcon_"
+                    @ tool[0]) {
+                    bitmap = tool[2];
+                    width = 32;
+                    height = 32;
+                    x = ("Staffpanel_ToolContainer_"
+                        @ tool[0]).width / 2 - width / 2 - (tool[4] ? 2 : 0);
+                    this.defaultY = y = ("Staffpanel_ToolContainer_"
+                        @ tool[0]).height / 2 - height / 2 - (tool[4] ? 2 : 0);
+                    this.toolData = tool;
+                    thiso.catchEvent(name, "OnMouseEnter", "onAddOutline");
+                    thiso.catchEvent(name, "OnMouseLeave", "onRemoveOutline");
+                    thiso.catchEvent(name, "OnMouseDown", "onToolSelected");
+                    thiso.catchEvent(name, "OnMouseup", "onResetContainerPos");
+                    alpha = thiso.default_iconAlpha;
+                } // Tool Icon
+                new GuiControl("Staffpanel_HotkeyContainer_"
+                    @ tool[0]) {
+                    useOwnProfile = true;
+                    profile.opaque = true;
+                    profile.border = 0;
+                    profile.borderColor = "slategray";
+                    profile.borderThickness = 1;
+                    this.defColor = profile.fillColor = {
+                        0,
+                        0,
+                        0,
+                        0
+                    };
+                    width = 15;
+                    height = 15;
+                    x = ("Staffpanel_ToolContainer_"
+                        @ tool[0]).width - width;
+                    y = ("Staffpanel_ToolContainer_"
+                        @ tool[0]).height - height;
+                    visible = (tool[4] ? true : false);
+                    active = false;
+                    new GuiMLTextCtrl("Staffpanel_HotkeyText_"
+                        @ tool[0]) {
+                        profile = GuiBlueMLTextProfile;
+                        useOwnProfile = true;
+                        profile.textshadow = true;
+                        text = "<center><b><font color=magenta>"
+                        @ tool[4];
+                        x = 0;
+                        y = 0;
+                        width = ("Staffpanel_HotkeyContainer_"
+                            @ tool[0]).width;
+                        height = ("Staffpanel_HotkeyContainer_"
+                            @ tool[0]).height;
+                    } // Hotkey Text
+                } // Hotkey Container
+            } // Tool Container
+            temp.newX += ("Staffpanel_ToolContainer_"
+                @tool[0]).width + 1;
+            findObject("Staffpanel").width += 41;
+            thiso.scheduleEvent(0 + delay, "Animate", ("Staffpanel_ToolContainer_"
+                @ tool[0]), "fadein", 0.25, "");
+            temp.delay += 0.05;
+        } // For all Tools
+        new GuiControl("Staffpanel_InfoPanel") {
+            useOwnProfile = true;
+            profile.opaque = true;
+            profile.border = 0;
+            profile.borderColor = "slategray";
+            profile.fillColor = {
+                0,
+                0,
+                0,
+                150
+            };
+            x = 1;
+            y = 1;
+            width = Staffpanel.width - 3;
+            height = 20;
+            new GuiMLTextCtrl("Staffpanel_InfoLine") {
+                profile = GuiBlueMLTextProfile;
+                useOwnProfile = true;
+                profile.textshadow = true;
+                text = thiso.default_textStyle @ thiso.default_text;
+                x = 1;
+                y = 2;
+                width = ("Staffpanel_InfoPanel").width - 4;
+                height = ("Staffpanel_InfoPanel").height;
+            } // Info Text
+            active = false;
+        } // Info Container
+        ("Staffpanel_Wallpaper").width = Staffpanel.width;
+        ("Staffpanel_Wallpaper").height = Staffpanel.height;
+    } // Staffpanel
+} // onDrawPanel();
+function onAnimate(ctr, ani, dur, tim) {
+    with(findObject(ctr).createAnimation()) {
+        transition = ani;
+        duration = dur;
+        timing = tim;
+    } // Animation
+} // onAnimate();
+function onAddOutline(o) {
+    with(findObject(("Staffpanel_ToolContainer_"
+        @ o.toolData[0]))) {
+        profile.border = 4;
+    } // Find the Object
+    ("Staffpanel_InfoLine").text = "<center>"
+    @ thiso.default_textStyle @ o.toolData[3];
+    findObject(("Staffpanel_ToolIcon_"
+        @ o.toolData[0])).alpha = 1;
+} // onAddOutline();
+function onRemoveOutline(o) {
+    findObject(o).y = findObject(o).defaultY;
+    temp.tpc = findObject(("Staffpanel_ToolContainer_"
+        @ o.toolData[0]));
+    with(findObject(("Staffpanel_ToolContainer_"
+        @ o.toolData[0]))) {
+        if (tpc.profile.fillColor != "0,255,0,150") {
+            profile.border = 0;
+        }
+    } // Find the Object
+    ("Staffpanel_InfoLine").text = thiso.default_textStyle @ thiso.default_text;
+    if (tpc.profile.fillColor != "0,255,0,150") {
+        findObject(("Staffpanel_ToolIcon_"
+            @ o.toolData[0])).alpha = thiso.default_iconAlpha;
+    } //
+} // onRemoveOutline();
+function onResetContainerPos(o) {
+    findObject(o).y = findObject(o).defaultY;
+} // onResetContainerPos();
+function GraalControl.onResize() {
+    Staffpanel.y = ChatBar.y - Staffpanel.height - 5;
+} // Graal was Resized
+function ChatBar.onTextChanged(txt) {
+    if (txt = "") return;
+    if (client.toggle.typewriter = false) return;
+    player.chat = ChatBar.text;
+    if (player.chat.starts(":")) {
+        player.chat = "";
+    }
+    if (player.chat.starts("/")) {
+        player.chat = "";
+    }
+    if (player.chat.starts("warpt")) {
+        player.chat = "";
+    }
+    if (player.chat.starts("setbody")) {
+        player.chat = "";
+    }
+    if (player.chat.starts("sethead")) {
+        player.chat = "";
+    }
+    if (player.chat.starts("setnick")) {
+        player.chat = "";
+    }
+} // Typewriter
+function switchLight(tdata, cfunc) {
+    if (!(cfunc in {
+            "drag",
+            "boots",
+            "block"
+        })) return;
+    temp.tpc = findObject(("Staffpanel_ToolContainer_"
+        @ tdata));
+    if (tpc.profile.fillColor == "0,0,0,150") {
+        tpc.profile.fillColor = "0,255,0,150";
+        findObject(("Staffpanel_ToolIcon_"
+            @ tdata)).alpha = 1;
+        findObject(("Staffpanel_ToolContainer_"
+            @ tdata)).profile.border = 4;
+    } else {
+        tpc.profile.fillColor = tpc.defColor;
+        findObject(("Staffpanel_ToolIcon_"
+            @ tdata)).alpha = thiso.default_iconAlpha;
+        findObject(("Staffpanel_ToolContainer_"
+            @ tdata)).profile.border = 0;
+    }
+} // Switch the Light of a Toggle
+
+function onTimeOut() {
+    if (this.tool.boots) {
+        for (temp.i = 0; temp.i < 4; temp.i++) {
+            if (keydown(temp.i)) {
+                player.x += vecx(temp.i) * thiso.bootSpeed;
+                player.y += vecy(temp.i) * thiso.bootSpeed;
+            } // Speed
+        } // Player Direction Detection
+    } // Boots
+    if (client.curEffect.starts("stealth")) {
+        for (temp.i = 0; temp.i < 4; temp.i++) {
+            if (keydown(temp.i)) {
+                player.x += vecx(temp.i) * 0.1;
+                player.y += vecy(temp.i) * 0.1;
+            } // Speed
+        } // Player Direction Detection
+    }
+    if (this.tool.block == true) {
+        showImg(200, "block.png", int(mousex), int(mousey));
+    } else hideimgs(200, 205);
+    if (Worlds_ChatBar.visible) {
+        Staffpanel.y = Worlds_ChatBar.y - Staffpanel.height - 5;
+    }
+    else if(ChatBar.visible) {
+        Staffpanel.y = ChatBar.y - Staffpanel.height - 5;
+    }
+    else if(graalreloaded) {
+        Staffpanel.y = ChatBar.y - Staffpanel.height;
+    } else Staffpanel.y = GraalControl.height - Staffpanel.height - 15;
+    if(this.curDrag.length() > 0) {
+      player.chat = "sent " @ timevar2 SPC this.curDrag.length();
+      triggerServer("gui", name, "dragPlayer", this.curDrag, mousex, mousey);
+    }// Dragging a Player
+    settimer(.05);
+} // onTimeOut();
+function GraalControl.onMouseUp() {
+    if (this.curDrag != null) {
+        triggerServer("gui", name, "dropPlayer", this.curDrag);
+        this.curDrag = {};
+    } // Drop the Dragging-Player
+} // Mouse was Released
+function GraalControl.onMouseDown() {
+    if (this.tool.drag == true) {
+        this.curDrag = getPlayer2(mousex, mousey);
+    } // Dragging a Player
+    if (this.tool.block == true) {
+        triggerServer("gui", name, "placeBlock", int(mousex), int(mousey));
+    } // Placing a Block
+} // Mouse Clicked
+function GraalControl.onMouseDragged() {
+    if (this.curDrag != null) {
+        triggerServer("gui", name, "dragPlayer", this.curDrag, mousex, mousey);
+    } // Dragging a Player
+} // Mouse was Dragged
+function GraalControl.onRightMouseDown() {
+    triggerAction(mousex, mousey, "Remove", player.account, player.communityname);
+} // Right Mouse Click
+function getPlayer2(tX, tY) {
+    for (temp.i = 0; temp.i < players.size(); temp.i++) {
+        if (tX in | players[i].x, players[i].x + 3 | && tY in | players[i].y, players[i].y + 3 | ) {
+            return players[i].account;
+        } // Player in Coordinates
+    } // For all Players
+    return "";
+} // getPlayer2();
+function onToolSelected(o) {
+    temp.toolFunc = o.toolData[1];
+    if (toolFunc == null) temp.toolFunc = o;
+    findObject(o).y += 2;
+    switchLight(o.toolData[0], toolFunc);
+    switch (toolFunc) {
+        case "close":
+            return Staffpanel.visible = false;
+        case "boots":
+            return this.tool.boots = !this.tool.boots;
+        case "drag":
+            return this.tool.drag = !this.tool.drag;
+        case "block":
+            return this.tool.block = !this.tool.block;
+    } // Switch
+} // onToolSelected
+function GraalControl.onKeyDown() {
+    switch (params[1]) {
+        case 2: {
+            Staffpanel.visible = true;
+            onResetToggles();
+            for (temp.tool: this.staffLinks) {
+                thiso.scheduleEvent(0 + delay, "Animate", ("Staffpanel_ToolContainer_"
+                    @ tool[0]), "fadein", 0.25, "");
+                temp.delay += 0.05;
+            }
+            break;
+        } // Open Panel
+        case "z": {
+            this.tool.boots = !this.tool.boots;
+            switchLight("Boots", "boots");
+            break;
+        } // Boots
+        case "x": {
+            this.tool.drag = !this.tool.drag;
+            switchLight("Drag", "drag");
+            break;
+        } // Drag
+        case "c": {
+            this.tool.block = !this.tool.block;
+            switchLight("Block", "block");
+            break;
+        }
+    }
+}
+SCRIPTEND

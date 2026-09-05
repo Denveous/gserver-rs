@@ -1,0 +1,83 @@
+GRACC001
+NAME Z
+NICK *z
+COMMUNITYNAME z
+LEVEL onlinestartlocal.nw
+X 18.50
+Y 25.00
+Z 0
+MAXHP 3
+HP 3
+RUPEES 0
+ANI idle
+ARROWS 10
+BOMBS 10
+GLOVEP 3
+SHIELDP 1
+SWORDP 1
+BOWP 1
+BOW 
+HEAD head0.png
+BODY body.png
+SWORD sword1.png
+SHIELD shield1.png
+COLORS 2,0,10,4,18
+SPRITE 0
+STATUS 21
+MP 0
+AP 51
+APCOUNTER 207
+ONSECS 0
+IP 2507697415
+LANGUAGE en
+KILLS 0
+DEATHS 0
+RATING 1500.000000
+DEVIATION 350.000000
+CHEST 56:30:onlinestartlocal.nw
+WEAPON bomb
+WEAPON bow
+WEAPON -gr_movement
+WEAPON test
+WEAPON -test
+
+BANNED 0
+BANREASON 
+BANLENGTH 
+COMMENTS 
+EMAIL 
+LOCALRIGHTS 1048575
+IPRANGE *.*.*.*
+LOADONLY 0
+FOLDERRIGHT rw heads/*
+FOLDERRIGHT rw bodies/*.png
+FOLDERRIGHT rw swords/*
+FOLDERRIGHT rw shields/*
+FOLDERRIGHT rw ganis/*.gani
+FOLDERRIGHT rw hats/*.png
+FOLDERRIGHT rw images/*.png
+FOLDERRIGHT rw images/*.gif
+FOLDERRIGHT rw images/*.mng
+FOLDERRIGHT rw sounds/*.mid
+FOLDERRIGHT rw sounds/*.mp3
+FOLDERRIGHT rw sounds/*.wav
+FOLDERRIGHT rw *.gani
+FOLDERRIGHT rw *.gif
+FOLDERRIGHT rw *.mng
+FOLDERRIGHT rw *.png
+FOLDERRIGHT rw *.mid
+FOLDERRIGHT rw *.mp3
+FOLDERRIGHT rw *.wav
+FOLDERRIGHT rw *.txt
+FOLDERRIGHT rw *.gmap
+FOLDERRIGHT rw *.graal
+FOLDERRIGHT rw *.nw
+FOLDERRIGHT rw levels/*.gmap
+FOLDERRIGHT rw levels/*.nw
+FOLDERRIGHT rw levels/*.graal
+FOLDERRIGHT rw global/*
+FOLDERRIGHT rw global/heads/*
+FOLDERRIGHT rw global/bodies/*.png
+FOLDERRIGHT rw global/swords/*
+FOLDERRIGHT rw global/shields/*
+LASTFOLDER 

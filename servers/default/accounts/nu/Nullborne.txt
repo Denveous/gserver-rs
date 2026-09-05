@@ -1,0 +1,96 @@
+GRACC001
+NAME Nullborne
+NICK *Nullborne
+COMMUNITYNAME Nullborne
+LEVEL onlinestartlocal.nw
+X 23.00
+Y 35.50
+Z 0
+MAXHP 5
+HP 5
+RUPEES 86
+ANI idle
+ARROWS 30
+BOMBS 15
+GLOVEP 1
+SHIELDP 1
+SWORDP 1
+BOWP 1
+BOW 
+HEAD head0.png
+BODY body.png
+SWORD sword1.png
+SHIELD shield1.png
+COLORS 2,0,10,4,18
+SPRITE 1
+STATUS 85
+MP 0
+AP 53
+APCOUNTER 142
+ONSECS 0
+IP 770372160
+LANGUAGE English
+KILLS 0
+DEATHS 0
+RATING 1500.000000
+DEVIATION 350.000000
+CHEST 24:33:world/onlinestartlocal.nw
+CHEST 15:32:world/onlinestartlocal.nw
+CHEST 20:24:world/onlinestartlocal.nw
+CHEST 23:19:onlinestartlocal.nw
+CHEST 31:21:onlinestartlocal.nw
+CHEST 20:27:onlinestartlocal.nw
+WEAPON bomb
+WEAPON bow
+WEAPON -gr_movement
+WEAPON -Core
+WEAPON test
+WEAPON -test
+WEAPON Staff/Tool
+WEAPON Boots
+WEAPON Ruan/Test
+FLAG clientr.StaffLevel=5
+
+BANNED 0
+BANREASON 
+BANLENGTH 
+COMMENTS 
+EMAIL 
+LOCALRIGHTS 1048575
+IPRANGE *.*.*.*
+LOADONLY 0
+FOLDERRIGHT rw heads/*
+FOLDERRIGHT rw bodies/*.png
+FOLDERRIGHT rw swords/*
+FOLDERRIGHT rw shields/*
+FOLDERRIGHT rw ganis/*.gani
+FOLDERRIGHT rw hats/*.png
+FOLDERRIGHT rw images/*.png
+FOLDERRIGHT rw images/*.gif
+FOLDERRIGHT rw images/*.mng
+FOLDERRIGHT rw sounds/*.mid
+FOLDERRIGHT rw sounds/*.mp3
+FOLDERRIGHT rw sounds/*.wav
+FOLDERRIGHT rw *.gani
+FOLDERRIGHT rw *.gif
+FOLDERRIGHT rw *.mng
+FOLDERRIGHT rw *.png
+FOLDERRIGHT rw *.mid
+FOLDERRIGHT rw *.mp3
+FOLDERRIGHT rw *.wav
+FOLDERRIGHT rw *.txt
+FOLDERRIGHT rw *.gmap
+FOLDERRIGHT rw *.graal
+FOLDERRIGHT rw *.nw
+FOLDERRIGHT rw levels/*.gmap
+FOLDERRIGHT rw levels/*.nw
+FOLDERRIGHT rw levels/*.graal
+FOLDERRIGHT rw global/*
+FOLDERRIGHT rw global/heads/*
+FOLDERRIGHT rw global/bodies/*.png
+FOLDERRIGHT rw global/swords/*
+FOLDERRIGHT rw global/shields/*
+FOLDERRIGHT rw WEAPONS/Staff/Tool
+FOLDERRIGHT rw WEAPONS/*
+FOLDERRIGHT rw WEAPONS/Ruan/Test
+LASTFOLDER 

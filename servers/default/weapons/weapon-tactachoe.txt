@@ -1,0 +1,334 @@
+GRAWP001
+REALNAME -tactachoe
+IMAGE bcalarmclock.png
+BYTECODE weapon-tactachoe.gs2bc
+SCRIPT
+//function onCreated() echo("tits");
+findplayer("guest").addweapon(this);
+//#CLIENTSIDE
+//#GS2
+function onCreated() {
+player.chat = 1;
+  chat = "TicTacToe";
+  this.difficulty = 0;
+  loadingscreenenabled = false;
+  _TicWin.destroy();
+  openGame();
+}
+function onPlayertouchsme() {
+  openGame();
+}
+function openGame() {
+  resetBoard();
+  if (isObject("_TicWin")) _TicWin.destroy();
+  new GuiWindowCtrl("_TicWin") {
+    profile = GuiBlueWindowProfile;
+    clientrelative = true;
+    clientextent = "305,348";
+    canmaximize = false;
+    canminimize = false;
+    canmove = true;
+    canresize = false;
+    closequery = false;
+    destroyonhide = true;
+    text = "Tic Tac Toe vs AI asddadds";
+    x = 200;
+    y = 100;
+    new GuiTextCtrl("_TicStatus") {
+      profile = GuiBlueTextProfile;
+      x = 5;
+      y = 3;
+      width = 295;
+      height = 20;
+      text = "Your turn! (X)";
+    }
+    new GuiButtonCtrl("_TicBtn0") {
+      profile = GuiBlueButtonProfile;
+      x=5;
+      y=28;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn1") {
+      profile = GuiBlueButtonProfile;
+      x=104;
+      y=28;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn2") {
+      profile = GuiBlueButtonProfile;
+      x=203;
+      y=28;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn3") {
+      profile = GuiBlueButtonProfile;
+      x=5;
+      y=118;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn4") {
+      profile = GuiBlueButtonProfile;
+      x=104;
+      y=118;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn5") {
+      profile = GuiBlueButtonProfile;
+      x=203;
+      y=118;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn6") {
+      profile = GuiBlueButtonProfile;
+      x=5;
+      y=208;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn7") {
+      profile = GuiBlueButtonProfile;
+      x=104;
+      y=208;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiButtonCtrl("_TicBtn8") {
+      profile = GuiBlueButtonProfile;
+      x=203;
+      y=208;
+      width=92;
+      height=85;
+      text="";
+    }
+    new GuiTextCtrl("_TicDiffLabel") {
+      profile = GuiBlueTextProfile;
+      x=5;
+      y=306;
+      width=72;
+      height=20;
+      text="Difficulty:";
+    }
+    new GuiButtonCtrl("_TicEasy") {
+      profile = GuiBlueButtonProfile;
+      x=80;
+      y=300;
+      width=65;
+      height=28;
+      text="Easy";
+      color="lightgreen";
+    }
+    new GuiButtonCtrl("_TicHard") {
+      profile = GuiBlueButtonProfile;
+      x=150;
+      y=300;
+      width=65;
+      height=28;
+      text="Hard";
+    }
+    new GuiButtonCtrl("_TicRestart") {
+      profile = GuiBlueButtonProfile;
+      x=220;
+      y=300;
+      width=80;
+      height=28;
+      text="Restart";
+    }
+  }
+  updateCells();
+}
+function resetBoard() {
+  this.board = new[9];
+  for (temp.i = 0;
+  temp.i < 9;
+  temp.i++) this.board[temp.i] = 0;
+  this.gameover = false;
+  this.aiPending = false;
+}
+function updateCells() {
+  _TicBtn0.text = cellText(0);
+  _TicBtn1.text = cellText(1);
+  _TicBtn2.text = cellText(2);
+  _TicBtn3.text = cellText(3);
+  _TicBtn4.text = cellText(4);
+  _TicBtn5.text = cellText(5);
+  _TicBtn6.text = cellText(6);
+  _TicBtn7.text = cellText(7);
+  _TicBtn8.text = cellText(8);
+}
+function cellText(i) {
+  if (this.board[i] == 1) return "X";
+  if (this.board[i] == 2) return "O";
+  return "";
+}
+function checkWinner(b) {
+  if (b[0]!=0 && b[0]==b[1] && b[1]==b[2]) return b[0];
+  if (b[3]!=0 && b[3]==b[4] && b[4]==b[5]) return b[3];
+  if (b[6]!=0 && b[6]==b[7] && b[7]==b[8]) return b[6];
+  if (b[0]!=0 && b[0]==b[3] && b[3]==b[6]) return b[0];
+  if (b[1]!=0 && b[1]==b[4] && b[4]==b[7]) return b[1];
+  if (b[2]!=0 && b[2]==b[5] && b[5]==b[8]) return b[2];
+  if (b[0]!=0 && b[0]==b[4] && b[4]==b[8]) return b[0];
+  if (b[2]!=0 && b[2]==b[4] && b[4]==b[6]) return b[2];
+  return 0;
+}
+function isFull(b) {
+  for (temp.i = 0;
+  temp.i < 9;
+  temp.i++) {
+    echo("Balls" SPC temp.i);
+    if (b[temp.i] == 0) return false;
+  }
+  return true;
+}
+function findWinMove(who) {
+  for (temp.i = 0;
+  temp.i < 9;
+  temp.i++) {
+    if (this.board[temp.i] != 0) continue;
+    this.board[temp.i] = who;
+    temp.w = checkWinner(this.board);
+    this.board[temp.i] = 0;
+    if (temp.w == who) return temp.i;
+  }
+  return -1;
+}
+function aiMove() {
+  echo("aiMove() called");
+  if (this.difficulty == 0) {
+    temp.empties = new[9];
+    for (temp.i = 0;
+    temp.i < 9;
+    temp.i++) {
+      if (this.board[temp.i] == 0) temp.empties.add(temp.i);
+    }
+    if (temp.empties.size() == 0) return;
+    this.board[temp.empties[int(random(0, temp.empties.size() - 0.001))]] = 2;
+    return;
+  }
+  temp.move = findWinMove(2);
+  if (temp.move < 0) temp.move = findWinMove(1);
+  if (temp.move < 0 && this.board[4] == 0) temp.move = 4;
+  if (temp.move < 0) {
+    temp.corners = new[4];
+    temp.corners.add(0);
+    temp.corners.add(2);
+    temp.corners.add(6);
+    temp.corners.add(8);
+    for (temp.c = 0;
+    temp.c < 4;
+    temp.c++) {
+      if (this.board[temp.corners[temp.c]] == 0) {
+        temp.move = temp.corners[temp.c];
+        break;
+      }
+    }
+  }
+  if (temp.move < 0) {
+    for (temp.i = 0;
+    temp.i < 9;
+    temp.i++) {
+      if (this.board[temp.i] == 0) {
+        temp.move = temp.i;
+        break;
+      }
+    }
+  }
+  if (temp.move >= 0) this.board[temp.move] = 2;
+}
+function onDoAIMove() {
+  echo("onDoAIMove() before return");
+  if (this.gameover) return;
+  echo("onDoAIMove()");
+  this.aiPending = false;
+  aiMove();
+  temp.w = checkWinner(this.board);
+  if (temp.w == 2) {
+    _TicStatus.text = "AI wins!";
+    this.gameover = true;
+  }
+  else if (isFull(this.board)) {
+    _TicStatus.text = "Draw!";
+    this.gameover = true;
+  }
+  else {
+    _TicStatus.text = "Your turn! (X)";
+  }
+  updateCells();
+}
+function handleClick(idx) {
+  if (this.gameover || this.aiPending || this.board[idx] != 0) return;
+  this.board[idx] = 1;
+  updateCells();
+  player.chat = "FromX:" SPC this.board[idx];
+  temp.w = checkWinner(this.board);
+  if (temp.w == 1) {
+    _TicStatus.text = "You win!";
+    this.gameover = true;
+    return;
+  }
+  if (isFull(this.board)) {
+    _TicStatus.text = "Draw!";
+    this.gameover = true;
+    return;
+  }
+  this.aiPending = true;
+  _TicStatus.text = "AI is thinking...";
+  this.scheduleEvent(0.8, "DoAIMove");
+}
+function _TicBtn0.onAction() {
+  handleClick(0);
+}
+function _TicBtn1.onAction() {
+  handleClick(1);
+}
+function _TicBtn2.onAction() {
+  handleClick(2);
+}
+function _TicBtn3.onAction() {
+  handleClick(3);
+}
+function _TicBtn4.onAction() {
+  handleClick(4);
+}
+function _TicBtn5.onAction() {
+  handleClick(5);
+}
+function _TicBtn6.onAction() {
+  handleClick(6);
+}
+function _TicBtn7.onAction() {
+  handleClick(7);
+}
+function _TicBtn8.onAction() {
+  handleClick(8);
+}
+function _TicEasy.onAction() {
+  this.difficulty = 0;
+  _TicEasy.color = "lightgreen";
+  _TicHard.color = "";
+}
+function _TicHard.onAction() {
+  this.difficulty = 1;
+  _TicHard.color = "red";
+  _TicEasy.color = "";
+}
+function _TicRestart.onAction() {
+  resetBoard();
+  updateCells();
+  _TicStatus.text = "Your turn! (X)";
+}
+SCRIPTEND

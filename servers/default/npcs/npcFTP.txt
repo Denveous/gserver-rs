@@ -1,0 +1,103 @@
+GRNPC001
+NAME FTP
+ID 1001
+TYPE OBJECT
+SCRIPTER moondeath
+IMAGE 
+STARTLEVEL onlinestartlocal.nw
+STARTX 30.50
+STARTY 30.00
+NICK 
+ANI 
+HP 0
+GRALATS 0
+ARROWS 0
+BOMBS 0
+GLOVEP 0
+SWORDP 0
+SHIELDP 0
+HEAD 
+BODY 
+SWORD 
+SHIELD 
+HORSE 
+COLORS 0,0,0,0,0
+SPRITE 0
+AP 0
+TIMEOUT 0
+LAYER 0
+SHAPETYPE 0
+SHAPE 32 48
+SAVEARR 0,0,0,0,0,0,0,0,0,0
+FLAG allowWrite=true
+FLAG ip=127.0.0.1
+FLAG logFile=ftplog.txt
+FLAG port=4201
+FLAG user.moondeath=true
+FLAG user.moondeath.allowWrite=true
+FLAG user.moondeath.password=098f6bcd4621d373cade4e832627b4f6
+NPCSCRIPT
+function onCreated() {
+  this.user.clearVars(); // don't touch this
+  
+  // users must use the account name since folder rights are derived
+  // from that user's RC rights
+  this.user.moondeath = true;
+  this.user.moondeath.password = md5("test"); // you can use a pre-MD5'd value here
+  this.user.moondeath.allowWrite = true;
+  
+  this.logFile = "ftplog.txt"; // don't prefix with logs/; logging is mandatory
+  
+  this.allowWrite = true; // allow writing (must also be true for
+                          // each user that can write), this takes
+                          // precedent over user-specific rights, so
+                          // false won't allow any users to write
+  
+  // don't touch below here
+  
+  // get server IP
+  temp.req = requestURL("https://4.ident.me");
+  
+  waitfor(req, "onReceiveData", 30);
+  //echo(req.data);
+  this.ip = "127.0.0.1";//req.data[0];
+  this.port = 4201;
+  //echo("IP:" SPC this.ip);
+  // destroy if existing
+  if (isObject("FTPListenSocket")) {
+    FTPListenSocket.destroy();
+  }
+  
+  // create the socket
+  this.listenSocket = new TSocket("FTPListenSocket");
+  this.listenSocket.optionDB = this;
+  this.listenSocket.join("ftp_listensocket");
+}
+
+function onInitialized() {
+  this.trigger("created");
+}
+
+public function onShowListenInfo() {
+  echo("FTP: Listening on " @ this.ip @ ":" @ this.listenSocket.port);
+}
+
+public function isValidFolderRight(acc, mode, file) {
+
+  //return;     
+  // TServerPlayer.hasRight(mode, file)
+  temp.pl = findPlayer(acc);
+  temp.isOffline = (pl == null);
+  temp.hasRight = false;
+  
+  if (isOffline) {
+    pl = new TServerPlayer(@ acc);
+    hasRight = pl.hasRight(mode, file);
+    pl.destroy();
+  } else {
+    hasRight = pl.hasRight(mode, file);
+  }
+  echo(file SPC hasRight);
+  return hasRight;
+}
+NPCSCRIPTEND

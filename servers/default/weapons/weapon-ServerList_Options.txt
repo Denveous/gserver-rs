@@ -1,0 +1,1214 @@
+GRAWP001
+REALNAME -ServerList_Options
+IMAGE 
+BYTECODE weapon-ServerList_Options.gs2bc
+SCRIPT
+//#CLIENTSIDE
+
+function onCreated() {
+  this.keyicons = {"up","left","down","right",
+    "shoot","sword","grab","map","chat","items","pause"};
+  this.keynames = {"Up","Left","Down","Right",
+    "Shoot/Weapons","Sword","Grab/Lift","Map",
+    "Chat","Inventory","Pause"};
+
+  // Check setting the gui style
+  temp.updateoptions = false;
+  if (graalversion >= 6.030 && $pref::Video::defaultguistyle=="" &&
+      !client.defaultstyleset) {
+    client.defaultstyleset = true;
+    $pref::Video::defaultguistyle = "vplusblue.wba";
+    temp.updateoptions = true;
+  }
+  if (graalversion >= 6.035 && $pref::Video::externalguistyle=="" &&
+      !client.externalstyleset) {
+    client.externalstyleset = true;
+    $pref::Video::externalguistyle = $pref::Video::defaultguistyle;
+    temp.updateoptions = true;
+  }
+  if (temp.updateoptions)
+    Adventure_saveGraalOptions();
+  showOptions();
+}
+
+public function getGUIStyle() {
+  if (isObject("-Serverlist"))
+    return ("-Serverlist").getExternalGUIStyle();
+  else if (graalversion >= 6.035)
+    return $pref::Video::externalguistyle;
+  else
+    return $pref::Video::defaultguistyle;
+}
+
+function onKeypressed(keycode) {
+  if (graalversion >= 5.306)
+    return;
+  if (keycode==0x72) { // F3
+    if (isObject("OptDialogWindow2D") &&
+        OptDialogWindow2D.visible)
+      OptDialogWindow2D.visible = false;
+    else
+      showOptions();
+  }
+}
+
+function onControlKeyDown(keycode,keytext,scancode,window) {
+  if (keycode==VK_F3 ||
+      (window=="OptDialogWindow2D" && keycode==VK_ESCAPE)) {
+    if (OptDialogWindow2D.visible)
+      OptDialogWindow2D.visible = false;
+    else
+      showOptions();
+  }
+}
+
+public function showOptions() {
+  cursoron();
+  addGuiControls();
+  addSubControls();
+  addInputCtrl();
+  OptDialogWindow2D.showtop();
+}
+
+function onPlayerLanguageChanges() {
+  if (isObject("OptDialogWindow2D"))
+    addSubControls();
+}
+
+function onDefaultStyleChanges() {
+  if (graalversion < 6.035 && isObject("OptDialogWindow2D"))
+    addSubControls();
+}
+
+function onExternalStyleChanges() {
+  if (graalversion >= 6.035 && isObject("OptDialogWindow2D"))
+    addSubControls();
+}
+
+function addGuiControls() {
+  new GuiControlProfile("GuiOptPaneProfile") {
+    opaque = true;
+    border = 3;
+    canKeyFocus = true;
+
+    fillColor = {41,82,156,64};
+    fontColor = {192,224,255};
+    fillColorHL = {96,144,208,64};
+  }
+}
+
+function addSubControls() {
+  if (isObject("OptDialogWindow2D"))
+    addOptionsWindow();
+  else {
+    with (GUIContainer) {
+      addOptionsWindow();
+    }
+  }
+  with (OptDialogTab) {
+    temp.oldsel = getSelectedRow();
+    clearRows();
+    with (addRow(0,_("General"))) {
+      hint = _("General options");
+    }
+    with (addRow(1,_("Sound"))) {
+      hint = _("Audio options");
+    }
+    with (addRow(2,_("Keys"))) {
+      hint = _("Keyboard configuration");
+    }
+    with (addRow(3,_("Capture"))) {
+      hint = _("Video capture options");
+    }
+    setSelectedRow(max(0, temp.oldsel));
+  }
+}
+  
+function addOptionsWindow() {
+    new GuiWindowCtrl("OptDialogWindow2D") {
+      if (parent==NULL) {
+        profile = "GuiBlueWindowProfile";
+        horizSizing = "center";
+        vertSizing = "center";
+        extent = {460, 440};
+        text = _("Options");
+        canMove = true;
+        canClose = true;
+        closeQuery = true;
+        canMinimize = false;
+        canMaximize = true;
+        minSize = "50 50";
+        tile = "1";
+      }
+      style = getGUIStyle();
+      clientrelative = true;
+      isexternal = true;
+ 
+      new GuiTabCtrl("OptDialogTab") {
+        profile = "GuiBlueTabProfile";
+        horizSizing = "width";
+        x = 5;
+        y = 5;
+        width = OptDialogWindow2D.clientwidth - x - 5;
+        height = 24;
+        tabwidth = 95;
+        leveling = 3;
+        horizSizing = true;
+
+        temp.oldsel = getSelectedRow();
+        clearRows();
+        with (addRow(0,_("General"))) {
+          hint = _("General options");
+        }
+        with (addRow(1,_("Sound"))) {
+          hint = _("Audio options");
+        }
+        with (addRow(2,_("Keys"))) {
+          hint = _("Keyboard configuration");
+        }
+        with (addRow(3,_("Capture"))) {
+          hint = _("Video capture options");
+        }
+        setSelectedRow(max(0, temp.oldsel));
+      }
+
+      new GuiControl("OptControlsPane2D") {
+        profile = GuiOptPaneProfile;
+        x = 5;
+        y = 29;
+        width = OptDialogWindow2D.clientwidth - x - 5;
+        height = OptDialogWindow2D.clientheight - y - 40;
+        horizSizing = "width";
+        vertSizing = "height";
+        visible = false;
+
+        new GuiScrollCtrl() {
+          profile = "GuiBlueScrollProfile";
+          horizSizing = "width";
+          vertSizing = "height";
+          x = 0;
+          y = 26;
+          width = OptControlsPane2D.clientwidth;
+          height = OptControlsPane2D.clientheight - y;
+          willFirstRespond = "1";
+          hScrollBar = "alwaysOff";
+          vScrollBar = "dynamic";
+          constantThumbHeight = "0";
+          childMargin = "0 0";
+          tile = "1";
+          defaultLineHeight = "15";
+
+          new GuiTextListCtrl(OptRemapList2D) {
+            profile = "GuiBlueTextListProfile";
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = "2 2";
+            extent = "337 8";
+            enumerate = "0";
+            resizeCell = "1";
+            columns = {0, 100, 185, 270};
+            fitParentWidth = true;
+            clipColumnText = false;
+            setIconSize(24,24);
+          }
+        }
+        new GuiTextCtrl(OptControlNameLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {32,5};
+          extent = {100,18};
+          text = _("Action");
+        }
+        new GuiTextCtrl(OptControlBindingLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {135,5};
+          extent = {120,18};
+          text = _("Mapped Keys");
+        }
+      }
+
+      new GuiControl("OptAudioPane2D") {
+        profile = "GuiOptPaneProfile";
+        x = 5;
+        y = 29;
+        width = OptDialogWindow2D.clientwidth - x - 5;
+        height = OptDialogWindow2D.clientheight - y - 40;
+        horizSizing = "width";
+        vertSizing = "height";
+        visible = false;
+
+        new GuiCheckBoxCtrl(OptReversestereoToggle2D) {
+          profile = "GuiBlueCheckBoxProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 10";
+          extent = "182 20";
+          text = _("Reverse stereo channels");
+        }
+
+        new GuiTextCtrl(OptMidiLabel2D) {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "148 46";
+          extent = "106 18";
+          text = _("Midi");
+        }
+        new GuiSliderCtrl(OptAudioVolumeMidi2D) {
+          profile = "GuiBlueSliderProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          resize(140,60,165,20);
+          range = "0 100";
+          ticks = "100";
+        }
+        new GuiTextCtrl(OptMp3Label2D) {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "148 83";
+          extent = "106 18";
+          text = _("Mp3");
+        }
+        new GuiSliderCtrl(OptAudioVolumeMp32D) {
+          profile = "GuiBlueSliderProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          resize(140,97,165,20);
+          range = "0 100";
+          ticks = "100";
+        }
+        new GuiTextCtrl(OptRadioLabel2D) {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "148 120";
+          extent = "106 18";
+          text = _("Radio");
+        }
+        new GuiSliderCtrl(OptAudioVolumeRadio2D) {
+          profile = "GuiBlueSliderProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          resize(140,134,165,20);
+          range = "0 100";
+          ticks = "100";
+        }
+        new GuiTextCtrl(OptVoiceLabel2D) {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "148 157";
+          extent = "106 18";
+          text = _("Voice");
+        }
+        new GuiSliderCtrl(OptAudioVolumeVoice2D) {
+          profile = "GuiBlueSliderProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          resize(140,171,165,20);
+          range = "0 100";
+          ticks = "100";
+        }
+        new GuiTextCtrl(OptSoundfxLabel2D) {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "148 194";
+          extent = "106 18";
+          text = _("Sound FX");
+        }
+        new GuiSliderCtrl(OptAudioVolumeSfx2D) {
+          profile = "GuiBlueSliderProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          resize(140,208,165,20);
+          range = "0 100";
+          ticks = "100";
+        }
+      }
+
+      new GuiControl("OptGeneralPane2D") {
+        profile = "GuiOptPaneProfile";
+        x = 5;
+        y = 29;
+        width = OptDialogWindow2D.clientwidth - x - 5;
+        height = OptDialogWindow2D.clientheight - y - 40;
+        horizSizing = "width";
+        vertSizing = "height";
+        visible = true;
+
+        temp.y = 20;
+
+        new GuiTextCtrl(OptLanguageLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = {220, 18};
+          text = _("Language:");
+        }
+        new GuiPopUpMenuCtrl("OptLanguageField2D") {
+          profile = GuiBluePopUpMenuProfile;
+          textprofile = GuiBlueTextListProfile;
+          scrollprofile = profile;
+          horizSizing = "width";
+          position = {233, temp.y};
+          width = OptGeneralPane2D.clientwidth - x - 5;
+          height = 23;
+        }
+        temp.y += 28;
+
+        if (player.platform in {"win","linux"}) {
+          new GuiTextCtrl(OptResolutionLabel2D) {
+            profile = "GuiBlueTextProfile";
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = {11, temp.y};
+            extent = "220 18";
+            text = _("Fullscreen Resolution:");
+          }
+          new GuiPopUpMenuCtrl(OptGraphicsResolutionMenu2D) {
+            profile = "GuiBluePopUpMenuProfile";
+            textprofile = "GuiBlueTextListProfile";
+            scrollprofile = profile;
+            horizSizing = "width";
+            vertSizing = "bottom";
+            position = {233, temp.y};
+            width = OptGeneralPane2D.clientwidth - x - 5;
+            height = 23;
+            maxPopupHeight = "200";
+          }
+          temp.y += 28;
+        }
+        
+        new GuiTextCtrl(OptDefaultStyleLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "220 18";
+          text = _("In-Game window style (Shop etc.):");
+        }
+        new GuiPopUpMenuCtrl(OptDefaultStyleMenu2D) {
+          profile = "GuiBluePopUpMenuProfile";
+          textprofile = "GuiBlueTextListProfile";
+          scrollprofile = profile;
+          horizSizing = "width";
+          vertSizing = "bottom";
+          position = {233, temp.y};
+          width = OptGeneralPane2D.clientwidth - x - 5;
+          height = 23;
+          maxPopupHeight = 200;
+        }
+        temp.y += 28;
+
+        if (graalversion >= 6.035) {
+          new GuiTextCtrl("OptExternalStyleLabel2D") {
+            profile = GuiBlueTextProfile;
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = {11, temp.y};
+            extent = "220 18";
+            text = _("External window style (PMs etc.):");
+          }
+          new GuiPopUpMenuCtrl("OptExternalStyleMenu2D") {
+            profile = GuiBluePopUpMenuProfile;
+            textprofile = GuiBlueTextListProfile;
+            scrollprofile = profile;
+            horizSizing = "width";
+            vertSizing = "bottom";
+            position = {233, temp.y};
+            width = OptGeneralPane2D.clientwidth - x - 5;
+            height = 23;
+            maxPopupHeight = 200;
+          }
+          temp.y += 28;
+        }
+                
+        new GuiTextCtrl(OptDefaultFontLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "210 18";
+          text = _("Default font:");
+        }
+        if (player.platform in {"mac"}) {
+          new GuiPopUpEditCtrl("OptDefaultFontMenu2D") {
+            profile = GuiBluePopUpMenuProfile;
+            textprofile = GuiBlueTextListProfile;
+            scrollprofile = profile;
+            horizSizing = "width";
+            vertSizing = "bottom";
+            position = {233, temp.y};
+            width = OptGeneralPane2D.clientwidth - x - 5;
+            height = 23;
+            maxPopupHeight = 200;
+            text = $pref::graal::defaultfontname;
+          }
+        } else {
+          new GuiTextEditCtrl("OptDefaultFontMenu2D") {
+            profile = GuiBlueTextEditProfile;
+            horizSizing = "width";
+            vertSizing = "bottom";
+            position = {233, temp.y};
+            width = OptGeneralPane2D.clientwidth - x - 5;
+            height = 23;
+            text = $pref::graal::defaultfontname;
+          }
+        }
+        temp.y += 28;
+        
+        new GuiTextCtrl(OptFontsizeLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "200 18";
+          text = _("Default font height:");
+        }
+        new GuiTextEditCtrl(OptFontsizeField2D) {
+          profile = "GuiBlueTextEditProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          position = {233, temp.y};
+          width = OptGeneralPane2D.clientwidth - x - 5;
+          height = 20;
+          minExtent = "8 23";
+          historySize = "0";
+          tabComplete = "0";
+        }
+        temp.y += 28;
+        
+        if (player.platform=="win" && graalversion>=6.014) {
+          new GuiCheckBoxCtrl(OptOpenGLToggle2D) {
+            profile = "GuiBlueCheckBoxProfile";
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = {11, temp.y};
+            extent = "349 20";
+            text = _("Use OpenGL for Graphics");
+            temp.y += 28;
+          }
+        }
+        new GuiCheckBoxCtrl(OptAutomappingToggle2D) {
+          profile = "GuiBlueCheckBoxProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "349 20";
+          text = _("Automatic mapping (M)");
+        }
+        temp.y += 28;
+        new GuiCheckBoxCtrl(OptToallsToggle2D) {
+          profile = "GuiBlueCheckBoxProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "349 20";
+          text = _("Allow toall-messages");
+        }
+        temp.y += 28;
+        if (graalversion >= 6.032) {
+          new GuiCheckBoxCtrl("OptFilenameScanToggle2D") {
+            profile = GuiBlueCheckBoxProfile;
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = {233, temp.y - 28};
+            width = OptGeneralPane2D.clientwidth - x - 5;
+            height = 20;
+            text = _("Scan Graal folder at startup");
+          }
+        } else if (player.platform=="win") {
+          new GuiCheckBoxCtrl("OptFilenameCacheToggle2D") {
+            profile = GuiBlueCheckBoxProfile;
+            horizSizing = "right";
+            vertSizing = "bottom";
+            position = {11, temp.y};
+            extent = "349 20";
+            text = _("Cache filenames for faster startup");
+          }
+          temp.y += 28;
+        }
+        new GuiCheckBoxCtrl(OptLimitnicknamesToggle2D) {
+          profile = "GuiBlueCheckBoxProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = {11, temp.y};
+          extent = "349 20";
+          text = _("Limit the length of nicknames to");
+        }
+        new GuiTextEditCtrl(OptNicknamelengthField2D) {
+          profile = "GuiBlueTextEditProfile";
+          horizSizing = "width";
+          vertSizing = "bottom";
+          position = {254, temp.y};
+          width = OptGeneralPane2D.clientwidth - x - 5;
+          height = 23;
+          minExtent = "8 20";
+          historySize = "0";
+          tabComplete = "0";
+        }
+        temp.y += 28;
+
+        new GuiButtonCtrl("OptOpenScreenshotFolder") {
+          profile = GuiBlueButtonProfile;
+          resize((OptGeneralPane2D.width-160)/2,temp.y,160,24);
+          horizSizing = "center";
+          text = _("Show Screenshots");
+          visible = hasScreenshots();
+          if (visible)
+            temp.y += 28;
+        }
+      }
+
+      new GuiControl("OptCapturePane2D") {
+        profile = GuiOptPaneProfile;
+        x = 5;
+        y = 29;
+        width = OptDialogWindow2D.clientwidth - x - 5;
+        height = OptDialogWindow2D.clientheight - y - 40;
+        horizSizing = "width";
+        vertSizing = "height";
+        visible = false;
+
+        new GuiMLTextCtrl("OptCaptureDescription2D") {
+          profile = GuiBlueMLTextProfile;
+          x = 35;
+          y = 10;
+          width = OptCapturePane2D.width - x - 20;
+          height = 14;
+          horizSizing = "width";
+          text = _("You can record a video by pressing Alt + 6 to start and stop recording. It is saved into the Graal folder under videos/.");
+        }
+
+        new GuiTextCtrl("OptVideoSizeLabel2D") {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 70";
+          extent = "112 18";
+          text = _("Video size:");
+        }
+        new GuiPopUpMenuCtrl("OptVideoSizeField2D") {
+          profile = GuiBluePopUpMenuProfile;
+          textprofile = GuiBlueTextListProfile;
+          scrollprofile = profile;
+          horizSizing = "width";
+          position = "254 70";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+    
+          temp.oldselected = getSelectedRow();
+          clearRows();
+          this.options = {"320x240", "640x480", "Full size"};
+          for (temp.i=0; temp.i<this.options.size(); temp.i++)
+            addRow(temp.i, _(this.options[temp.i]));
+          setSelectedRow(temp.oldselected);
+        }
+
+        new GuiTextCtrl("OptCaptureAreaLabel2D") {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 90";
+          extent = "112 18";
+          text = _("Capture area:");
+        }
+        new GuiPopUpMenuCtrl("OptCaptureAreaField2D") {
+          profile = GuiBluePopUpMenuProfile;
+          textprofile = GuiBlueTextListProfile;
+          scrollprofile = profile;
+          horizSizing = "width";
+          position = "254 90";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+
+          temp.oldselected = getSelectedRow();
+          clearRows();
+          this.options = {"Full window", "Focus on player", "Focus on mouse"};
+          for (temp.i=0; temp.i<this.options.size(); temp.i++)
+            addRow(temp.i, _(this.options[temp.i]));
+          setSelectedRow(temp.oldselected);
+        }
+
+        new GuiTextCtrl("OptFrameRateLabel2D") {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 110";
+          extent = "112 18";
+          text = _("Frames per second:");
+        }
+        new GuiPopUpMenuCtrl("OptFrameRateField2D") {
+          profile = GuiBluePopUpMenuProfile;
+          textprofile = GuiBlueTextListProfile;
+          scrollprofile = profile;
+          horizSizing = "width";
+          position = "254 110";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+
+          temp.oldselected = getSelectedRow();
+          clearRows();
+          this.options = {1, 2, 5, 10, 20};
+          for (temp.i=0; temp.i<this.options.size(); temp.i++)
+            addRow(temp.i, this.options[temp.i]);
+          setSelectedRow(temp.oldselected);
+        }
+
+        new GuiCheckBoxCtrl("OptDisableCaptureDayNightToggle2D") {
+          profile = GuiBlueCheckBoxProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 130";
+          extent = "340 20";
+          text = _("Disable day-night effects");
+        }
+
+        new GuiCheckBoxCtrl("OptHideInterfaceToggle2D") {
+          profile = GuiBlueCheckBoxProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 150";
+          extent = "340 20";
+          text = _("Hide the interface");
+        }
+
+        new GuiCheckBoxCtrl("OptShowCaptureMouseToggle2D") {
+          profile = GuiBlueCheckBoxProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 170";
+          extent = "340 20";
+          text = _("Show the mouse cursor");
+        }
+
+        new GuiCheckBoxCtrl("OptCaptureByScriptToggle2D") {
+          profile = GuiBlueCheckBoxProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 190";
+          extent = "340 20";
+          text = _("Allow capture by script");
+        }
+
+        new GuiCheckBoxCtrl("OptRecordAudioToggle2D") {
+          profile = GuiBlueCheckBoxProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "20 210";
+          extent = "340 20";
+          text = _("Capture audio");
+        }
+
+        new GuiTextCtrl("OptRecordFormatLabel2D") {
+          profile = GuiBlueTextProfile;
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 230";
+          extent = "112 18";
+          text = _("Format:");
+        }
+        new GuiPopUpMenuCtrl("OptRecordFormatField2D") {
+          profile = GuiBluePopUpMenuProfile;
+          textprofile = GuiBlueTextListProfile;
+          scrollprofile = profile;
+          horizSizing = "width";
+          position = "254 230";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+
+          temp.oldselected = getSelectedRow();
+          clearRows();
+          this.formats = {"","avi","wmv","flv"};
+          this.options = {"avi (Uncompressed)","avi (MPEG4)","wmv (Windows Media)","flv (Flash Video)"};
+          for (temp.i=0; temp.i<this.options.size(); temp.i++)
+            addRow(temp.i, _(this.options[temp.i]));
+          setSelectedRow(temp.oldselected);
+        }
+
+        new GuiTextCtrl(OptVideoBitRateLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 250";
+          extent = "200 18";
+          text = _("Video Bit Rate:");
+        }
+        new GuiTextEditSliderCtrl(OptVideoBitRateField2D) {
+          profile = GuiBlueTextEditSliderProfile;
+          horizSizing = "width";
+          vertSizing = "bottom";
+          position = "254 250";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+          minExtent = "8 20";
+          format = "%d kbit";
+          range = {100, 10000};
+          increment = 100;
+        }
+
+        new GuiTextCtrl(OptAudioBitRateLabel2D) {
+          profile = "GuiBlueTextProfile";
+          horizSizing = "right";
+          vertSizing = "bottom";
+          position = "35 270";
+          extent = "200 18";
+          text = _("Audio Bit Rate:");
+        }
+        new GuiTextEditSliderCtrl(OptAudioBitRateField2D) {
+          profile = GuiBlueTextEditSliderProfile;
+          horizSizing = "width";
+          vertSizing = "bottom";
+          position = "254 270";
+          width = OptCapturePane2D.clientwidth - x - 5;
+          height = 20;
+          minExtent = "8 20";
+          format = "%d kbit";
+          range = {32, 9600};
+          increment = 16;
+        }
+
+        temp.y = 270 + 28;
+        new GuiButtonCtrl("OptOpenVideoFolder") {
+          profile = GuiBlueButtonProfile;
+          resize((OptGeneralPane2D.width-160)/2,temp.y,160,24);
+          horizSizing = "center";
+          text = _("Show Videos");
+          visible = hasVideos();
+          if (visible)
+            temp.y += 28;
+        }
+      }
+
+      new GuiButtonCtrl("OptOpenPlayerListOptions") {
+        profile = GuiBlueButtonProfile;
+        width = 160;
+        height = 24;
+        x = 10;
+        y = OptDialogWindow2D.clientheight - height - 10;
+        vertSizing = "top";
+        text = _("Playerlist Options");
+      }
+
+      new GuiButtonCtrl("OptOKLabel2D") {
+        profile = GuiBlueButtonProfile;
+        width = 60;
+        height = 24;
+        x = OptDialogWindow2D.clientwidth - width - 10;
+        y = OptDialogWindow2D.clientheight - height - 10;
+        horizSizing = "left";
+        vertSizing = "top";
+        text = _("OK");
+      }
+    }
+}
+
+function addInputCtrl() {
+  new GuiControl("RemapDlg") {
+    profile = GuiControlProfile;
+    useownprofile = true;
+    profile.tab = true;
+    profile.modal = true;
+    visible = false;
+  }
+}
+
+function OptionsDlg2D_setPane(pane) {
+  OptGeneralPane2D.visible = false;
+  OptAudioPane2D.visible = false;
+  OptControlsPane2D.visible = false;
+  OptCapturePane2D.visible = false;
+  ("Opt" @ pane @ "Pane2D").visible = true;
+  OptRemapList2D_fillList();
+}
+
+function OptDialogWindow2D.onShow() {
+  // General options
+  OptGraphicsDriverMenu2D_init("OpenGL");
+  
+  // Gui styles
+  with (OptDefaultStyleMenu2D) {
+    clearRows();
+    temp.i = 0;
+    addRow(temp.i++, _("Default"));
+    for (temp.file: findfiles("*.wba",true))
+      addRow(temp.i++, extractFileBase(temp.file));
+    if (findtext("VPlusBlue") < 0 && findtext("vplusblue") < 0 && servername.starts("login"))
+      addRow(temp.i++,  "VPlusBlue");
+      
+    sortmode = "name";
+    sort();
+    text = extractFileBase($pref::Video::defaultguistyle);
+    if (text=="")
+      text = _("Default");
+  }
+  if (isObject("OptExternalStyleMenu2D")) {
+    with (OptExternalStyleMenu2D) {
+      clearRows();
+      temp.i = 0;
+      addRow(temp.i++, _("Default"));
+      for (temp.file: findfiles("*.wba",true))
+        addRow(temp.i++, extractFileBase(temp.file));
+      if (findtext("VPlusBlue") < 0 && findtext("vplusblue") < 0 && servername.starts("login"))
+        addRow(temp.i++,  "VPlusBlue");
+      
+      sortmode = "name";
+      sort();
+      text = extractFileBase($pref::Video::externalguistyle);
+      if (text=="")
+        text = _("Default");
+    }
+  }
+  
+  if (player.platform in {"mac"}) {
+    temp.fonts = Adventure_getFolder("/Library/Fonts/", "*.ttf", true, true);
+    OptDefaultFontMenu2D.clearrows();
+    
+    for (temp.font: temp.fonts) {
+      temp.font = extractfilebase(temp.font);
+      
+      if (temp.font.ends("Bold") ||
+          temp.font.ends("Italic") ||
+          temp.font.ends("Oblique") ||
+          temp.font.ends("Inclined"))
+        continue;
+        
+      OptDefaultFontMenu2D.addrow(0, temp.font);
+    }
+  }
+  
+  OptDefaultFontMenu2D.text = $pref::graal::defaultfontname;
+  OptFontsizeField2D.text = $pref::Graal::defaultfontsize;
+  OptLanguageField2D.clearRows();
+  i = 0;
+  for (temp.lang: installedlanguages)
+    OptLanguageField2D.addRow(i++, temp.lang);
+  OptLanguageField2D.sort();
+  langindex = OptLanguageField2D.findText($pref::Graal::language);
+  if (langindex<0)
+    langindex = OptLanguageField2D.findText("English");
+  if (langindex>=0)
+    OptLanguageField2D.setSelectedRow(langindex);
+
+  if (isObject("OptOpenGLToggle2D") && OptOpenGLToggle2D.visible)
+    OptOpenGLToggle2D.checked = $pref::Video::useOpenGL;
+  OptAutomappingToggle2D.checked = $pref::Graal::automapping;
+  OptToallsToggle2D.checked = !$pref::Graal::notoalls;
+  if (isObject("OptFilenameScanToggle2D"))
+    OptFilenameScanToggle2D.checked = $pref::Graal::filescan;
+  if (isObject("OptFilenameCacheToggle2D"))
+    OptFilenameCacheToggle2D.checked = $pref::Graal::cachefilenames;
+  OptLimitnicknamesToggle2D.checked = $pref::Graal::limitnicknames;
+  OptNicknamelengthField2D.text = $pref::Graal::nicknamelimit;  
+  
+  // Audio
+  OptAudioVolumeMidi2D.value = $pref::Audio::midivolume;
+  OptAudioVolumeMp32D.value = $pref::Audio::mp3volume;
+  OptAudioVolumeRadio2D.value = $pref::Audio::radiovolume;
+  OptAudioVolumeVoice2D.value = $pref::Audio::voicevolume;
+  OptAudioVolumeSfx2D.value = $pref::Audio::sfxvolume;
+  OptReversestereoToggle2D.checked = $pref::Audio::reversestereo;
+
+  // Controls
+  if ($pref::Input::mouseSensitivity<0.05 || $pref::Input::mouseSensitivity>2)
+    $pref::Input::mouseSensitivity = 1;
+  OptControlsMouseSensSlider.value = $pref::Input::mouseSensitivity;
+
+  // Video capture options
+  OptVideoSizeField2D.setSelectedRow(OptVideoSizeField2D.options.index(
+    $pref::Capture::size));
+  OptCaptureAreaField2D.setSelectedRow(OptCaptureAreaField2D.options.index(
+    $pref::Capture::area));
+  OptFrameRateField2D.setSelectedRow(OptFrameRateField2D.options.index(
+    $pref::Capture::fps));
+  OptDisableCaptureDayNightToggle2D.checked = $pref::Capture::disabledaynight;
+  OptHideInterfaceToggle2D.checked = $pref::Capture::hideinterface;
+  OptShowCaptureMouseToggle2D.checked = $pref::Capture::showmouse;
+  OptCaptureByScriptToggle2D.checked = $pref::Capture::allowbyscript;
+  OptRecordAudioToggle2D.checked = $pref::Capture::recordaudio;
+  OptRecordFormatField2D.setSelectedRow(max(0, OptRecordFormatField2D.formats.index($pref::Capture::format)));
+  OptVideoBitRateField2D.value = $pref::Capture::videobitrate / 1000;
+  OptAudioBitRateField2D.value = $pref::Capture::audiobitrate / 1000;
+}
+
+function OptDialogWindow2D.onHide() {
+  // Apply all options
+  
+  // GUI style
+  temp.newstyle = OptDefaultStyleMenu2D.text;
+  $pref::Video::defaultguistyle = (temp.newstyle!="Default" && 
+    temp.newstyle!=_("Default")? temp.newstyle @ ".wba" : "");
+  if (graalversion >= 6.035) {
+    temp.newstyle = OptExternalStyleMenu2D.text;
+    $pref::Video::externalguistyle = (temp.newstyle!="Default" && 
+      temp.newstyle!=_("Default")? temp.newstyle @ ".wba" : "");
+  }
+
+  // General options
+  $pref::Graal::automapping = OptAutomappingToggle2D.checked;
+  $pref::Graal::notoalls = !OptToallsToggle2D.checked;
+  if (isObject("OptFilenameScanToggle2D"))
+    $pref::Graal::filescan = OptFilenameScanToggle2D.checked;
+  if (isObject("OptFilenameCacheToggle2D"))
+    $pref::Graal::cachefilenames = OptFilenameCacheToggle2D.checked;
+  $pref::Graal::limitnicknames = OptLimitnicknamesToggle2D.checked;
+  $pref::Graal::nicknamelimit = OptNicknamelengthField2D.text;
+  $pref::Graal::defaultfontsize = OptFontsizeField2D.text;
+  $pref::Graal::defaultfontname = OptDefaultFontMenu2D.text;
+
+  $pref::Audio::reversestereo = OptReversestereoToggle2D.checked;
+
+  // Video recording
+  $pref::Capture::size = OptVideoSizeField2D.options[OptVideoSizeField2D.getSelectedRow()];
+  $pref::Capture::area = OptCaptureAreaField2D.options[OptCaptureAreaField2D.getSelectedRow()];
+  $pref::Capture::fps = OptFrameRateField2D.text;
+  $pref::Capture::disabledaynight = OptDisableCaptureDayNightToggle2D.checked;
+  $pref::Capture::hideinterface = OptHideInterfaceToggle2D.checked;
+  $pref::Capture::showmouse = OptShowCaptureMouseToggle2D.checked;
+  $pref::Capture::recordaudio = OptRecordAudioToggle2D.checked;
+  Adventure_setAllowRecordByScript(OptCaptureByScriptToggle2D.checked);
+  $pref::Capture::format = OptRecordFormatField2D.formats[OptRecordFormatField2D.getSelectedRow()];
+  $pref::Capture::videobitrate = OptVideoBitRateField2D.value * 1000;
+  $pref::Capture::audiobitrate = OptAudioBitRateField2D.value * 1000;
+
+  // Switch between OpenGL and DirectX
+  $pref::Video::fullscreenmode = OptGraphicsResolutionMenu2D.text;
+  if (isObject("OptOpenGLToggle2D") && OptOpenGLToggle2D.visible) {
+    temp.useopengl = OptOpenGLToggle2D.checked;
+    if ($pref::Video::useOpenGL != temp.useopengl) {
+      // Destroy some windows because the window recreation for OpenGL
+      // is messing them up
+      if (isObject("PlayerList_Window")) {
+        PlayerList_Window.destroy();
+        PlayerList_Window = NULL;
+      }
+      OptDialogWindow2D.destroy();
+      OptDialogWindow2D = NULL;
+    }
+    $pref::Video::useOpenGL = temp.useopengl;
+  }
+
+  // Save controls and options
+  Adventure_saveGraalOptions();
+}
+
+function OptGraphicsDriverMenu2D_init(device) {
+  if (!isObject("OptGraphicsResolutionMenu2D"))
+    return;
+
+  // Attempt to keep the same resolution settings:
+  if (OptGraphicsResolutionMenu2D.rows.size() > 0)
+    temp.prevRes = OptGraphicsResolutionMenu2D.text;
+  else
+    temp.prevRes = $pref::Video::fullScreenMode;
+
+  // Fill the resolution lists:
+  OptGraphicsResolutionMenu2D_init(device);
+
+  // Try to select the previous settings:
+  temp.selId = OptGraphicsResolutionMenu2D.findTextId(temp.prevRes);
+  if (temp.selId < 0)
+    temp.selId = 0;
+  OptGraphicsResolutionMenu2D.setSelectedById(temp.selId);
+}
+
+function OptGraphicsResolutionMenu2D_init(device) {
+  OptGraphicsResolutionMenu2D.clearRows();
+  reslist = getResolutionList( device );
+
+  temp.count = 0;
+  for (temp.i = 0; temp.i < reslist.size(); temp.i++ ) {
+    //Note: for DirectX9 it's also specifying the refresh rate,
+    // but it's using the default rate anyway, so ignore it
+    temp.resarr = reslist[temp.i].tokenize("x");
+    if (temp.resarr.size() < 2)
+      continue;
+    res = temp.resarr[0] @ "x" @ temp.resarr[1];
+    // Only add to list if it isn't there already:
+    if (OptGraphicsResolutionMenu2D.findText(res ) >= 0)
+      continue;
+      
+    OptGraphicsResolutionMenu2D.addRow(temp.count, res);
+    temp.count++;
+  }
+}
+
+function OptRemapList2D_fillList() {
+  if (!scriptedcontrols)
+    return;
+
+  with (OptRemapList2D) {
+    clearRows();
+    for (temp.i=0; temp.i<thiso.keyicons.size(); temp.i++) {
+      with (addRow(temp.i, buildFullMapString(temp.i, -1, ""))) {
+        icon.clearall();
+        icon.drawimage(0,0,"controls_" @ thiso.keyicons[temp.i] @ ".png");
+      }
+    }
+  }
+}
+
+function buildFullMapString(action, replaceindex, replacestr) {
+  temp.txt = thiso.keynames[action];
+  for (temp.i=0; temp.i<3; temp.i++) {
+    temp.txt @= "\t";
+    if (temp.i==replaceindex)
+      temp.txt @= replacestr;
+    else
+      temp.txt @= Adventure_getControlBinding(action, temp.i).keytext.substring(0,9);
+  }
+  return temp.txt;
+}
+
+function OptRemapList2D_doRemap(action, slot) {
+//  selid = OptRemapList2D.getSelectedId();
+
+  this.remapmode = "2D";
+  this.remapindex = action;
+  this.remapslot = slot;
+
+  OptRemapList2D.setRowById(action, buildFullMapString(action, slot, "Type a key"));
+
+  OptDialogWindow2D.addcontrol(RemapDlg);
+  pushDialog(RemapDlg);
+}
+
+function RemapDlg.onKeyDown(keycode,keychar,scancode) {
+//  echo("key down: " @ params);
+  finishRemapDialog(keycode, keychar);
+}
+
+function RemapDlg.onMouseDown() {
+  finishRemapDialog(-1, "");
+}
+
+function RemapDlg.onRightMouseDown() {
+  finishRemapDialog(-1, "");
+}
+
+function finishRemapDialog(keycode, keychar) {
+  if ((keycode & 0xff) in {0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5})
+    return;
+
+  if (keycode>=0)
+    Adventure_setControlBinding(this.remapindex, this.remapslot, 
+      (keycode==0x2E? -1 : keycode & 0xff)); // 0x2E = VK_ESCAPE
+      
+  OptRemapList2D_fillList();
+
+  popDialog();
+}
+
+function OptDialogWindow2D.onCloseQuery() {
+  OptDialogWindow2D.visible = false;
+}
+
+function OptOpenPlayerListOptions.onAction() {
+  ("-Playerlist").drawOptionsPanel();
+}
+
+function hasScreenshots() {
+  if (!(player.platform in {"mac","win"}) || 
+       graalversion < 6)
+    return false;
+
+  temp.folder = Adventure_getApplicationFolder(1);
+  return (Adventure_getFolder(temp.folder @ "screenshots/","*.*",true,false).size() > 0);
+}
+
+function OptOpenScreenshotFolder.onAction() {
+  temp.folder = Adventure_getApplicationFolder(1);
+  Adventure_openDefaultViewer(temp.folder @ "screenshots/", 0);
+}
+
+function hasVideos() {
+  if (!(player.platform in {"mac","win"}) || 
+      graalversion < 6)
+    return false;
+
+  temp.folder = Adventure_getApplicationFolder(1);
+  return (Adventure_getFolder(temp.folder @ "videos/","*.*",true,false).size() > 0);
+}
+
+function OptOpenVideoFolder.onAction() {
+  temp.folder = Adventure_getApplicationFolder(1);
+  Adventure_openDefaultViewer(temp.folder @ "videos/", 0);
+}
+
+function OptOKLabel2D.onAction() {
+  OptDialogWindow2D.visible = false;
+}
+
+function OptDialogTab.onSelect(entryid) {
+  switch (entryid) {
+    case 0: { OptionsDlg2D_setPane("General"); break; }
+    case 1: { OptionsDlg2D_setPane("Audio"); break; }
+    case 2: { OptionsDlg2D_setPane("Controls"); break; }
+    case 3: { OptionsDlg2D_setPane("Capture"); break; }
+  }
+}
+
+function OptRemapList2D.onMouseDown(mousemod, mx, my, clickcount) {
+  temp.pos = OptRemapList2D.globaltolocalcoord({mx,my});
+  temp.row = OptRemapList2D.getRowAtPoint(mx, my);
+  temp.col = -1;
+  for (temp.colx: OptRemapList2D.columns) {
+    if (temp.pos[0]<temp.colx)
+      break;
+    temp.col++;
+  }
+  if (temp.col in {1,2,3})
+    OptRemapList2D_doRemap(temp.row, temp.col-1);
+}
+
+function OptAudioVolumeRadio2D.onAction() {
+  $pref::Audio::radiovolume = OptAudioVolumeRadio2D.value;
+  Adventure_updateRadioVolume();
+}
+
+function OptAudioVolumeMidi2D.onAction() {
+  $pref::Audio::midivolume = OptAudioVolumeMidi2D.value;
+  Adventure_updateMidiVolume();
+}
+
+function OptAudioVolumeMp32D.onAction() {
+  $pref::Audio::mp3volume = OptAudioVolumeMp32D.value;
+  Adventure_updateMp3Volume();
+}
+
+function OptAudioVolumeVoice2D.onAction() {
+  $pref::Audio::voicevolume = OptAudioVolumeVoice2D.value;
+}
+
+function OptAudioVolumeSfx2D.onAction() {
+  $pref::Audio::sfxvolume = OptAudioVolumeSfx2D.value;
+}
+
+function OptLanguageField2D.onSelect(selectedid, selectedtext, selectedindex) {
+  $pref::Graal::language = selectedtext;
+}
+
+function OptDefaultStyleMenu2D.onSelect(selid, seltext, selrow) {
+  $pref::Video::defaultguistyle = (seltext!="Default" && 
+    seltext!=_("Default")? seltext @ ".wba"  :"");
+}
+
+function OptExternalStyleMenu2D.onSelect(selid, seltext, selrow) {
+  $pref::Video::externalguistyle = (seltext!="Default" && 
+    seltext!=_("Default")? seltext @ ".wba"  :"");
+}
+
+function OptDefaultFontMenu2D.onAction() {
+  $pref::graal::defaultfontname = OptDefaultFontMenu2D.text;
+}
+
+function OptDefaultFontMenu2D.onSelect(temp.row, temp.text) {
+  $pref::graal::defaultfontname = temp.text;
+}
+SCRIPTEND

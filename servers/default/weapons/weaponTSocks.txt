@@ -1,0 +1,23 @@
+GRAWP001
+REALNAME TSocks
+IMAGE bcalarmclock.png
+SCRIPT
+function onCreated() {
+  this.sock = new TSocket("sock");
+  this.sock.packagedelimiter = NL;
+  this.sock.connect("127.0.0.1", 19191);
+  echo("TSocket connecting");
+}
+function sock.onConnect() {
+  echo("TSocket connected");
+  echo("connected");
+  send("hello world" @ NL);
+}
+function sock.onConnectFailed() {
+  echo("TSocket failed:" SPC data);
+}
+function sock.onReceiveDataPackage() {
+  echo("TSocket recv:" SPC data);
+  close();
+}
+SCRIPTEND
